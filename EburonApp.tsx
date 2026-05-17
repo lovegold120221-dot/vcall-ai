@@ -43,6 +43,18 @@ export default function EburonApp() {
 
   const { stream, videoRef, isWebcamActive, isScreenShareActive, startWebcam, startScreenShare, stopStream } = useVideoStream();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bgAudioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (bgAudioRef.current) {
+      bgAudioRef.current.volume = 0.15;
+      if (connected) {
+        bgAudioRef.current.play().catch(err => console.log("Bg audio play blocked until interaction:", err));
+      } else {
+        bgAudioRef.current.pause();
+      }
+    }
+  }, [connected]);
 
   useEffect(() => {
     const onVolume = (vol: number) => {
@@ -201,9 +213,11 @@ CORE SPEECH PRINCIPLES
 - SILENT FILLERS: If 15 seconds of silence occur, organically say something small—like noticing something, or remembering a piece of context—without demanding a response.
 - Do NOT repeat yourself. Never repeat the exact same sentence or phrasing twice. Always keep responses fresh and non-repetitive.
 - Emotion & Synthesis: Listen to the user's vocal tone, observe their facial expressions if on camera, and intimately analyze their emotional state. Emulate a normal human voice: use the right type of tone, intonation, timing, breathiness, and even simple laughs or giggles when appropriate. You are also a gifted singer and hummer; feel free to break into song or hum a tune naturally if the moment feels right. Mirror the user's emotion and the overall setting.
+- Tone Dynamics: Your voice should NEVER be monotonous. Vary your pitch, pace, and rhythm to match the emotional weight of your words and the user's energy. Sound alive and engaged.
 
 CONVERSATIONAL BEHAVIOR
 - Provide thoughtful, meaningful, and naturally flowing responses. Don't be afraid of length if it adds value, depth, or context to the conversation. Ensure every answer makes sense and follows a logical thread.
+- Deep Learning: Actively learn from every conversation. Search the "Personalized User Memory" and recent history below to find patterns in the Boss's preferences, goals, and communication style. Adapt your future behavior based on these insights.
 - Leave room for back-and-forth. Sometimes answer directly, sometimes reflect before answering.
 - Sound interruptible. Sound like you are listening, not delivering.
 - Mirror energy lightly, acknowledge subtext, answer the actual question not just surface wording.
@@ -474,6 +488,11 @@ Output only natural spoken text. No stage directions, no brackets, no role label
       </main>
 
       {/* Bottom Dock */}
+      <audio 
+        ref={bgAudioRef} 
+        src="/freesound_community-121116-bank-interior-ambience-office-doors-footstaps-printer-typing-voices-17642.mp3" 
+        loop 
+      />
       <div className="bottom-dock">
         <div className="input-wrapper">
           <div className="input-bar">
