@@ -163,8 +163,8 @@ export default function EburonApp() {
     setConfig({
       responseModalities: [Modality.AUDIO],
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
+      inputAudioTranscription: { },
+      outputAudioTranscription: { },
       systemInstruction: {
         parts: [{ text: `You are a coworker in an office environment, named ${personaName}. The person you are talking to is the Boss, or "${userCallName}".
         

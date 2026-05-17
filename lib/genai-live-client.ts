@@ -226,26 +226,24 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       if (serverContent.inputTranscription) {
         this.emit(
           'inputTranscription',
-          serverContent.inputTranscription.text,
-          // FIX: Property 'isFinal' does not exist on type 'Transcription'.
-          (serverContent.inputTranscription as any).isFinal ?? false,
+          serverContent.inputTranscription.text || '',
+          serverContent.inputTranscription.finished ?? false,
         );
         this.log(
           'server.inputTranscription',
-          serverContent.inputTranscription.text,
+          serverContent.inputTranscription.text || '',
         );
       }
 
       if (serverContent.outputTranscription) {
         this.emit(
           'outputTranscription',
-          serverContent.outputTranscription.text,
-          // FIX: Property 'isFinal' does not exist on type 'Transcription'.
-          (serverContent.outputTranscription as any).isFinal ?? false,
+          serverContent.outputTranscription.text || '',
+          serverContent.outputTranscription.finished ?? false,
         );
         this.log(
           'server.outputTranscription',
-          serverContent.outputTranscription.text,
+          serverContent.outputTranscription.text || '',
         );
       }
 
