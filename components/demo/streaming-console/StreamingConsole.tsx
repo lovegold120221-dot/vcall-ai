@@ -170,6 +170,8 @@ export default function StreamingConsole() {
       }
     };
 
+    // NOTE: Conflicting listeners disabled in StreamingConsole.tsx to favor EburonApp.tsx logic.
+    /*
     client.on('inputTranscription', handleInputTranscription);
     client.on('outputTranscription', handleOutputTranscription);
     client.on('content', handleContent);
@@ -181,6 +183,8 @@ export default function StreamingConsole() {
       client.off('content', handleContent);
       client.off('turncomplete', handleTurnComplete);
     };
+    */
+    return () => {};
   }, [client]);
 
   useEffect(() => {

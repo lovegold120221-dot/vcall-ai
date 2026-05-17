@@ -136,61 +136,66 @@ export default function EburonApp() {
      }
   }, [volume]);
 
+  const userTranscriptCommitted = useRef("");
+  const agentTranscriptCommitted = useRef("");
+
   useEffect(() => {
     if (!client) return;
 
     const { addTurn, updateLastTurn } = useLogStore.getState();
 
     const handleInputTranscription = (text: string, isFinal: boolean) => {
+      // When user speaks, clear agent committed buffer as we've switched turns
+      agentTranscriptCommitted.current = "";
+
       const currentTurns = useLogStore.getState().turns;
       const last = currentTurns[currentTurns.length - 1];
       
-      // If we're continuing a user turn that isn't final, update it.
-      // Note: We use the text as-is because the API usually sends the current best guess for the segment.
+      // text is typically the full string for the current audio segment
+      const fullText = userTranscriptCommitted.current + text;
+      
       if (last && last.role === 'user' && !last.isFinal) {
         updateLastTurn({
-          text: text, 
-          isFinal,
+          text: fullText, 
+          isFinal: false,
         });
       } else if (text.trim()) {
-        addTurn({ role: 'user', text, isFinal });
+        addTurn({ role: 'user', text: fullText, isFinal: false });
+      }
+
+      if (isFinal) {
+        userTranscriptCommitted.current = fullText + " ";
       }
     };
 
     const handleOutputTranscription = (text: string, isFinal: boolean) => {
+      // When agent speaks, clear user committed buffer
+      userTranscriptCommitted.current = "";
+
       const currentTurns = useLogStore.getState().turns;
       const last = currentTurns[currentTurns.length - 1];
       
+      const fullText = agentTranscriptCommitted.current + text;
+      
       if (last && last.role === 'agent' && !last.isFinal) {
         updateLastTurn({
-          text: text,
-          isFinal,
+          text: fullText,
+          isFinal: false,
         });
       } else if (text.trim()) {
-        addTurn({ role: 'agent', text, isFinal });
+        addTurn({ role: 'agent', text: fullText, isFinal: false });
+      }
+
+      if (isFinal) {
+        agentTranscriptCommitted.current = fullText + " ";
       }
     };
 
     const handleContent = (serverContent: any) => {
-      if (serverContent.modelTurn) {
-        const text = serverContent.modelTurn.parts
-          ?.map((p: any) => p.text)
-          .filter(Boolean)
-          .join(' ') ?? '';
-        
-        if (!text) return;
-
-        const currentTurns = useLogStore.getState().turns;
-        const last = currentTurns.at(-1);
-
-        if (last?.role === 'agent' && !last.isFinal) {
-          updateLastTurn({
-            text: last.text + text,
-          });
-        } else {
-          addTurn({ role: 'agent', text, isFinal: false });
-        }
-      }
+      // Prioritize outputTranscription for agent text to ensure synchronization with audio.
+      // However, we still need to handle tool calls and other non-text parts if they arrive here.
+      // In this app, tool calls are already handled via the 'toolcall' event listener.
+      // so we can safely ignore modelTurn text here to avoid duplication/clashes.
     };
 
     const handleInterrupted = () => {
@@ -220,48 +225,52 @@ export default function EburonApp() {
 
       const responses = await Promise.all(
         functionCalls.map(async (fc: any) => {
+          // Log the function call in the UI as a system turn
+          useLogStore.getState().addTurn({
+             role: 'system',
+             text: `**Tool Call**: ${fc.name}(${JSON.stringify(fc.args)})`,
+             isFinal: true
+          });
+
           if (fc.name === 'save_memory') {
-            // Support both 'content' and 'memory' argument names for safety
             const content = fc.args.content || fc.args.memory;
             const type = fc.args.type || 'personal';
             
             if (!content) {
               return {
                 id: fc.id,
-                response: { output: { error: "Missing memory content" } }
+                response: { error: "Missing content" }
               };
             }
 
             try {
               const resData = await api.saveMemory(content, type);
-              // Refresh memories in state
               const updated = await api.fetchMemories();
               setMemories(updated);
               return {
                 id: fc.id,
-                response: { output: { success: true, memory: resData } }
+                response: { success: true, memory: resData }
               };
             } catch (err: any) {
               console.error("Save memory tool error:", err);
               return {
                 id: fc.id,
-                response: { output: { success: false, error: err.message || "Failed to save memory." } }
+                response: { success: false, error: err.message || "Failed to save memory." }
               };
             }
           }
 
-          // Handle generic office tools logic (stubs for now, or real logic if needed)
-          const genericPrompts: Record<string, string> = {
-            'schedule_meeting': 'Meeting scheduled successfully.',
-            'execute_voice_command': 'Command executed.',
-            'generate_artifact': 'Artifact generated and displayed.',
+          const genericResponses: Record<string, any> = {
+            'schedule_meeting': { status: 'Meeting scheduled successfully.' },
+            'execute_voice_command': { status: 'Command executed.' },
+            'generate_artifact': { status: 'Artifact generated and displayed.' },
           };
 
-          const outputText = genericPrompts[fc.name] || "Tool logic not fully implemented yet, but call was received.";
+          const responsePayload = genericResponses[fc.name] || { status: "Tool logic received." };
 
           return {
             id: fc.id,
-            response: { output: outputText }
+            response: responsePayload
           };
         })
       );
