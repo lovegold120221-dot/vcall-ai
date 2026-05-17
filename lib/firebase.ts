@@ -1,11 +1,16 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId === '(default)' ? undefined : (firebaseConfig as any).firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+
+const dbId = (firebaseConfig as any).firestoreDatabaseId === '(default)' ? undefined : (firebaseConfig as any).firestoreDatabaseId;
+
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+}, dbId);
 
 export enum OperationType {
   CREATE = 'create',
