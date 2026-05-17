@@ -25,8 +25,8 @@ import { AudioStreamer } from '../../lib/audio-streamer';
 import { audioContext } from '../../lib/utils';
 import VolMeterWorket from '../../lib/worklets/vol-meter';
 import { useLogStore, useSettings } from '@/lib/state';
-import { db, auth, handleFirestoreError, OperationType } from '@/lib/firebase';
-import { doc, getDoc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
+import * as api from '@/lib/api-client';
 
 export type UseLiveApiResults = {
   client: GenAILiveClient;
@@ -148,25 +148,12 @@ export function useLiveApi({
            if (!user) {
                responsePayload = { error: 'No user authenticated. Cannot save memory.' };
            } else {
-               const path = `users/${user.uid}`;
                try {
-                   const userRef = doc(db, 'users', user.uid);
-                   await setDoc(userRef, {
-                       memories: arrayUnion({
-                           content: memory,
-                           type: type || 'personal',
-                           timestamp: new Date().toISOString()
-                       }),
-                       updatedAt: new Date().toISOString()
-                   }, { merge: true });
+                   await api.saveMemory(memory, type || 'personal');
                    responsePayload = { status: 'Memory saved successfully' };
                } catch (e: any) {
-                   handleFirestoreError(e, OperationType.WRITE, path);
-                   // Note: handleFirestoreError throws, so this might need careful handling 
-                   // if we want to return a response to the AI.
-                   // However, the guideline says RE-THROW.
-                   // Let's adjust to catch and return the JSON if we want the AI to know.
-                   // Actually, re-throwing is required for the system to diagnose.
+                   console.error("Error saving memory to Postgres:", e);
+                   responsePayload = { error: 'Failed to save memory' };
                }
            }
         }

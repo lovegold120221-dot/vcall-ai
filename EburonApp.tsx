@@ -6,9 +6,9 @@ import ReactMarkdown from 'react-markdown';
 import { Modality } from '@google/genai';
 import { useVideoStream } from './hooks/use-video-stream';
 import { LANGUAGES } from './lib/languages';
-import { auth, db, testConnection, handleFirestoreError, OperationType } from './lib/firebase';
+import { auth, testConnection } from './lib/firebase';
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDocFromServer, setDoc } from 'firebase/firestore';
+import * as api from './lib/api-client';
 
 export default function EburonApp() {
   const [isAuthOpen, setIsAuthOpen] = useState(true);
@@ -59,23 +59,26 @@ export default function EburonApp() {
   const chatAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    testConnection();
+    // testConnection(); // Firestore specific, skipping for now as we use Postgres
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
        if (user) {
           setIsAuthOpen(false);
           setActiveOverlay(null);
-          // Fetch memories from Firestore
-          const path = `users/${user.uid}`;
+          
           try {
-            const userDoc = await getDocFromServer(doc(db, 'users', user.uid));
-            if (userDoc.exists()) {
-              const data = userDoc.data();
-              if (data.memories) {
-                setMemories(data.memories);
-              }
-            }
+            // Fetch Settings
+            const settings = await api.fetchSettings();
+            setPersonaName(settings.persona_name);
+            setUserCallName(settings.user_call_name);
+            setSystemPrompt(settings.system_prompt);
+            setVoice(settings.voice);
+            setLanguage(settings.language);
+
+            // Fetch memories
+            const memoryList = await api.fetchMemories();
+            setMemories(memoryList);
           } catch (e) {
-            handleFirestoreError(e, OperationType.GET, path);
+            console.error("Error loading user data from Postgres:", e);
           }
        } else {
           setIsAuthOpen(true);
@@ -83,7 +86,7 @@ export default function EburonApp() {
        }
     });
     return () => unsubscribe();
-  }, []);
+  }, [setPersonaName, setUserCallName, setSystemPrompt, setVoice, setLanguage]);
 
   const hasStartedRef = useRef(false);
   useEffect(() => {
@@ -298,33 +301,25 @@ When using tools, think silently but speak naturally after receiving results.` }
     }
   };
 
-  const handleUpdateMemory = async (index: number, newValue: string) => {
-    const user = auth.currentUser;
-    if (!user) return;
-    const newMemories = [...memories];
-    newMemories[index] = { ...newMemories[index], content: newValue, updatedAt: new Date().toISOString() };
-    
+  const handleUpdateMemory = async (id: number, newValue: string, type: string) => {
     try {
-      const userRef = doc(db, 'users', user.uid);
-      await setDoc(userRef, { memories: newMemories }, { merge: true });
-      setMemories(newMemories);
+      await api.deleteMemory(id);
+      await api.saveMemory(newValue, type);
+      const memoryList = await api.fetchMemories();
+      setMemories(memoryList);
       setEditingMemoryIndex(null);
     } catch (e) {
-      handleFirestoreError(e, OperationType.WRITE, `users/${user.uid}`);
+      console.error("Error updating memory:", e);
     }
   };
 
-  const handleDeleteMemory = async (index: number) => {
-    const user = auth.currentUser;
-    if (!user) return;
-    const newMemories = memories.filter((_, i) => i !== index);
-    
+  const handleDeleteMemory = async (id: number) => {
     try {
-      const userRef = doc(db, 'users', user.uid);
-      await setDoc(userRef, { memories: newMemories }, { merge: true });
-      setMemories(newMemories);
+      await api.deleteMemory(id);
+      const memoryList = await api.fetchMemories();
+      setMemories(memoryList);
     } catch (e) {
-      handleFirestoreError(e, OperationType.WRITE, `users/${user.uid}`);
+      console.error("Error deleting memory:", e);
     }
   };
 
@@ -527,9 +522,9 @@ When using tools, think silently but speak naturally after receiving results.` }
                   No memories stored yet. Talk to Beatrice to build context!
                 </div>
               ) : (
-                memories.map((m, i) => (
-                  <div key={i} className="memory-item" style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {editingMemoryIndex === i ? (
+                memories.map((m) => (
+                  <div key={m.id} className="memory-item" style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {editingMemoryIndex === m.id ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <textarea 
                           className="form-input" 
@@ -547,7 +542,7 @@ When using tools, think silently but speak naturally after receiving results.` }
                           <button 
                             className="pill-btn" 
                             style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: 'var(--accent-active)', color: 'var(--bg-main)' }}
-                            onClick={() => handleUpdateMemory(i, editingMemoryValue)}
+                            onClick={() => handleUpdateMemory(m.id, editingMemoryValue, m.type)}
                           >Save</button>
                         </div>
                       </div>
@@ -560,7 +555,7 @@ When using tools, think silently but speak naturally after receiving results.` }
                               className="icon-btn" 
                               style={{ color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer' }}
                               onClick={() => {
-                                setEditingMemoryIndex(i);
+                                setEditingMemoryIndex(m.id);
                                 setEditingMemoryValue(m.content);
                               }}
                             >
@@ -569,7 +564,7 @@ When using tools, think silently but speak naturally after receiving results.` }
                             <button 
                               className="icon-btn" 
                               style={{ color: '#ff4d4d', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                              onClick={() => handleDeleteMemory(i)}
+                              onClick={() => handleDeleteMemory(m.id)}
                             >
                               <i className="ph ph-trash"></i>
                             </button>
@@ -577,7 +572,7 @@ When using tools, think silently but speak naturally after receiving results.` }
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: '10px', color: 'var(--accent-active)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{m.type}</span>
-                          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{new Date(m.timestamp || m.updatedAt).toLocaleDateString()}</span>
+                          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{new Date(m.created_at || m.updatedAt).toLocaleDateString()}</span>
                         </div>
                       </>
                     )}
@@ -587,10 +582,23 @@ When using tools, think silently but speak naturally after receiving results.` }
             </div>
           </div>
 
-          <button className="save-now-btn" onClick={(e) => {
+          <button className="save-now-btn" onClick={async (e) => {
              const btn = e.currentTarget;
-             btn.textContent = 'Saved!';
-             setTimeout(() => { btn.textContent = 'Save Now'; setActiveOverlay(null); }, 1500)
+             try {
+               await api.updateSettings({
+                 persona_name: personaName,
+                 user_call_name: userCallName,
+                 system_prompt: systemPrompt,
+                 voice: voice,
+                 language: language
+               });
+               btn.textContent = 'Saved!';
+               setTimeout(() => { btn.textContent = 'Save Now'; setActiveOverlay(null); }, 1500);
+             } catch (err) {
+               console.error("Error saving settings:", err);
+               btn.textContent = "Error!";
+               setTimeout(() => { btn.textContent = "Save Now"; }, 1500);
+             }
           }}>Save Now</button>
 
           <div className="danger-action" onClick={() => { signOut(auth); }}>
@@ -671,7 +679,21 @@ When using tools, think silently but speak naturally after receiving results.` }
                 ))}
              </select>
           </div>
-          <button className="save-now-btn" onClick={() => setActiveOverlay(null)}>Save Settings</button>
+          <button className="save-now-btn" onClick={async (e) => {
+             const btn = e.currentTarget;
+             try {
+               await api.updateSettings({
+                 persona_name: personaName,
+                 user_call_name: userCallName,
+                 system_prompt: systemPrompt,
+                 voice: voice,
+                 language: language
+               });
+               setActiveOverlay(null);
+             } catch (err) {
+               console.error("Error saving settings:", err);
+             }
+          }}>Save Settings</button>
         </div>
       </div>
 

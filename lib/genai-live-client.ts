@@ -155,12 +155,14 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       return;
     }
     chunks.forEach(chunk => {
+      // Use explicit audio/video keys as requested by the API to avoid deprecation warnings
       if (chunk.mimeType.startsWith('image/') || chunk.mimeType.startsWith('video/')) {
         this.session!.sendRealtimeInput({ video: chunk });
       } else if (chunk.mimeType.startsWith('audio/')) {
         this.session!.sendRealtimeInput({ audio: chunk });
       } else {
-        this.session!.sendRealtimeInput({ media: chunk }); // Fallback
+        // Default to audio if unknown to avoid the deprecated 'media_chunks' field
+        this.session!.sendRealtimeInput({ audio: chunk });
       }
     });
 
