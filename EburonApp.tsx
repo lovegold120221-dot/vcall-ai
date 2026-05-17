@@ -477,6 +477,11 @@ Output only natural spoken text. No stage directions, no brackets, no role label
                  height: micState ? `${28 + clientVolume * 30}px` : '0px',
                  opacity: micState && clientVolume > 0.01 ? 0.3 : 0
                }}></div>
+               <div className="icon-pulse-ring" style={{ 
+                 width: micState ? `${32 + clientVolume * 50}px` : '0px', 
+                 height: micState ? `${32 + clientVolume * 50}px` : '0px',
+                 opacity: micState && clientVolume > 0.01 ? 0.5 : 0
+               }}></div>
                <i className={`ph-fill ph-microphone${micState ? '' : '-slash'}`}></i>
              </div>
              <span>{micState ? 'Mute' : 'Unmute'}</span>
