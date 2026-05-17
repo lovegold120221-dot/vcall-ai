@@ -122,27 +122,53 @@ export function useLiveApi({
         let responsePayload: any = { result: 'ok' };
         
         if (fc.name === 'fetch_google_api') {
-           const { url, method } = fc.args as any;
+           const { url, method, body } = fc.args as any;
            const token = useAuth.getState().googleAccessToken;
            if (!token) {
                responsePayload = { error: 'No Google access token found, please authenticate with Google (Sign in option).' };
+           } else if (!url) {
+               responsePayload = { error: 'Missing full URL for Google API.' };
            } else {
                try {
+                   const headers: any = { Authorization: `Bearer ${token}` };
+                   let fetchBody = undefined;
+                   if (body) {
+                       headers['Content-Type'] = 'application/json';
+                       fetchBody = typeof body === 'string' ? body : JSON.stringify(body);
+                   }
+
                    const res = await fetch(url, {
                        method: method || 'GET',
-                       headers: { Authorization: `Bearer ${token}` }
+                       headers,
+                       body: fetchBody
                    });
-                   const dataText = await res.text();
+
+                   let dataText = '';
+                   try { dataText = await res.text(); } catch (e) {}
+
                    let json = null;
-                   try { json = JSON.parse(dataText); } catch(e) {}
+                   if (dataText) {
+                       try { json = JSON.parse(dataText); } catch(e) {}
+                   }
                    
-                   responsePayload = json || { data: dataText };
-                   
-                   const uiState = await import('../../lib/state');
-                   uiState.useUI.getState().setActiveWorkspaceResult(responsePayload);
-                   
+                   if (!res.ok) {
+                       responsePayload = { 
+                           error: `HTTP Error ${res.status}: ${res.statusText}`, 
+                           status: res.status,
+                           details: json || dataText || 'No error body returned.'
+                       };
+                   } else {
+                       responsePayload = {
+                           data: json || dataText
+                       };
+                       // If meaningful response, set in UI workspace
+                       if (json && Object.keys(json).length > 0) {
+                           const uiState = await import('../../lib/state');
+                           uiState.useUI.getState().setActiveWorkspaceResult(json);
+                       }
+                   }
                } catch (e: any) {
-                   responsePayload = { error: e.message };
+                   responsePayload = { error: 'Request execution failed. Network might be down or API blocked.', message: e.message };
                }
            }
         }

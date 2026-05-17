@@ -128,7 +128,7 @@ export const workspaceTools: FunctionCall[] = [
   },
   {
     name: "fetch_google_api",
-    description: "Fetches data from Google APIs. The AI decides the correct Google API endpoint URL based on what the user wants to fetch (e.g., https://www.googleapis.com/calendar/v3/calendars/primary/events for Calendar; https://gmail.googleapis.com/gmail/v1/users/me/messages for Gmail). Only use this to read data.",
+    description: "Fetches or writes data using Google APIs. The AI decides the correct Google API endpoint URL based on what the user wants to accomplish (e.g., https://www.googleapis.com/calendar/v3/calendars/primary/events for Calendar; https://gmail.googleapis.com/gmail/v1/users/me/messages for Gmail). You can use this for GET, POST, PUT, DELETE, etc.",
     isEnabled: true,
     scheduling: FunctionResponseScheduling.INTERRUPT,
     parameters: {
@@ -136,11 +136,15 @@ export const workspaceTools: FunctionCall[] = [
       properties: {
         url: {
           type: "STRING",
-          description: "The full URL endpoint to fetch from Google API. e.g. https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=2024-01-01T00:00:00Z"
+          description: "The full URL endpoint for the Google API. e.g. https://www.googleapis.com/calendar/v3/calendars/primary/events"
         },
         method: {
           type: "STRING",
-          description: "HTTP Method, e.g. GET or POST"
+          description: "HTTP Method, e.g. GET, POST, PUT, PATCH, DELETE"
+        },
+        body: {
+          type: "OBJECT",
+          description: "Optional JSON body for POST/PUT/PATCH requests."
         }
       },
       required: ["url", "method"]
