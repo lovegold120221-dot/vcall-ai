@@ -81,6 +81,14 @@ export default function EburonApp() {
   useEffect(() => {
     // testConnection(); // Firestore specific, skipping for now as we use Postgres
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+       // Diagnostic health check
+       try {
+         const health = await fetch("/api/health").then(r => r.json());
+         console.log("Backend health check:", health);
+       } catch (err) {
+         console.error("Backend health check failed (is the server running?):", err);
+       }
+
        if (user) {
           setIsAuthOpen(false);
           setActiveOverlay(null);

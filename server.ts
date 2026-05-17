@@ -5,12 +5,13 @@ import { createClient } from "@supabase/supabase-js";
 import admin from "firebase-admin";
 import cors from "cors";
 import dotenv from "dotenv";
-import firebaseConfig from "./firebase-applet-config.json" with { type: "json" };
+import fs from "fs";
 
 dotenv.config();
 
 // Initialize Firebase Admin for Authentication
 if (!admin.apps.length) {
+  const firebaseConfig = JSON.parse(fs.readFileSync(path.join(process.cwd(), "firebase-applet-config.json"), "utf8"));
   admin.initializeApp({
     projectId: firebaseConfig.projectId,
   });
@@ -21,10 +22,11 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error("CRITICAL: Supabase credentials missing. Please set SUPABASE_URL and SUPABASE_ANON_KEY in environment variables.");
+  console.warn("WARNING: Supabase credentials missing. Settings and memories will likely fail.");
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Only create client if URL is present to avoid crashing on start
+const supabase = supabaseUrl ? createClient(supabaseUrl, supabaseKey) : null;
 
 async function startServer() {
   const app = express();
@@ -33,28 +35,44 @@ async function startServer() {
   app.use(express.json());
   app.use(cors());
 
+  // Logging middleware
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+  });
+
+  // Health check
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", message: "Server is running", supabaseConnected: !!supabase });
+  });
+
   // Middleware to verify Firebase Auth Token
   const authenticateToken = async (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
+      console.log("No token provided in request");
       return res.status(401).json({ error: "Unauthorized: No token provided" });
     }
 
     try {
+      if (!admin.apps.length) {
+         return res.status(500).json({ error: "Firebase Admin not initialized" });
+      }
       const decodedToken = await admin.auth().verifyIdToken(token);
       req.user = decodedToken;
       next();
-    } catch (err) {
-      console.error("Token verification error:", err);
-      return res.status(403).json({ error: "Forbidden: Invalid token" });
+    } catch (err: any) {
+      console.error("Token verification error:", err.message);
+      return res.status(403).json({ error: "Forbidden: Invalid token", details: err.message });
     }
   };
 
   // API Routes
   app.get("/api/supabase-check", async (req, res) => {
     try {
+      if (!supabase) throw new Error("Supabase client not initialized due to missing keys.");
       const { data, error } = await supabase.from("user_settings").select("count").limit(1);
       res.json({ connected: !error, error: error ? error : null });
     } catch (err) {
@@ -65,6 +83,7 @@ async function startServer() {
   // Settings
   app.get("/api/settings", authenticateToken, async (req: any, res) => {
     try {
+      if (!supabase) throw new Error("Database not connected (Supabase keys missing)");
       const { uid } = req.user;
       
       // Try querying with 'uid' first
@@ -196,6 +215,7 @@ async function startServer() {
   // Memories
   app.get("/api/memories", authenticateToken, async (req: any, res) => {
     try {
+      if (!supabase) throw new Error("Database not connected (Supabase keys missing)");
       const { uid } = req.user;
       let { data, error } = await supabase
         .from("user_memories")
@@ -224,6 +244,7 @@ async function startServer() {
 
   app.post("/api/memories", authenticateToken, async (req: any, res) => {
     try {
+      if (!supabase) throw new Error("Database not connected (Supabase keys missing)");
       const { uid } = req.user;
       const { content, type = 'personal' } = req.body;
 
@@ -262,6 +283,7 @@ async function startServer() {
 
   app.delete("/api/memories/:id", authenticateToken, async (req: any, res) => {
     try {
+      if (!supabase) throw new Error("Database not connected (Supabase keys missing)");
       const { uid } = req.user;
       const { id } = req.params;
       
@@ -310,6 +332,12 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // Error handling middleware
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("GLOBAL ERROR HANDLER:", err);
+    res.status(500).json({ error: "Internal Server Error", details: err.message || String(err) });
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
