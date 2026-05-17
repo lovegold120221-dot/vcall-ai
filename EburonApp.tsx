@@ -174,6 +174,7 @@ export default function EburonApp() {
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
       inputAudioTranscription: { model: 'models/gemini-2.0-flash-exp' } as any,
       outputAudioTranscription: { model: 'models/gemini-2.0-flash-exp' } as any,
+      explicitVadSignal: true,
       systemInstruction: {
         parts: [{ text: `You are a coworker in an office environment, named ${personaName}. The person you are talking to is the Boss, or "${userCallName}".
         

@@ -63,9 +63,11 @@ export class AudioRecorder {
     this.starting = new Promise(async (resolve, reject) => {
       this.stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
+          channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: this.sampleRate
         } 
       });
       this.audioContext = await audioContext({ sampleRate: this.sampleRate });
