@@ -99,9 +99,10 @@ export default function EburonApp() {
   // Track silence for 15s filler
   const lastUserSpeechTime = useRef(Date.now());
   const fillerTriggeredRef = useRef(false);
+  const aiIsSpeakingRef = useRef(false);
 
   useEffect(() => {
-     if (clientVolume > 0.05) {
+     if (clientVolume > 0.01) {
         lastUserSpeechTime.current = Date.now();
         fillerTriggeredRef.current = false;
      }
@@ -110,8 +111,14 @@ export default function EburonApp() {
   useEffect(() => {
      if (volume > 0.05) {
         // AI is speaking, reset the silence timer so we count 15s from AFTER it stops
+        aiIsSpeakingRef.current = true;
         lastUserSpeechTime.current = Date.now();
         fillerTriggeredRef.current = false;
+     } else {
+        if (aiIsSpeakingRef.current) {
+           aiIsSpeakingRef.current = false;
+           lastUserSpeechTime.current = Date.now(); // Start timer exactly when AI stops
+        }
      }
   }, [volume]);
 
@@ -119,7 +126,7 @@ export default function EburonApp() {
      let interval: NodeJS.Timeout;
      if (connected) {
         interval = setInterval(() => {
-           if (!fillerTriggeredRef.current) {
+           if (!fillerTriggeredRef.current && !aiIsSpeakingRef.current) {
               const now = Date.now();
               if (now - lastUserSpeechTime.current > 15000) {
                  fillerTriggeredRef.current = true;
@@ -165,8 +172,8 @@ export default function EburonApp() {
     setConfig({
       responseModalities: [Modality.AUDIO],
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-      inputAudioTranscription: { },
-      outputAudioTranscription: { },
+      inputAudioTranscription: { model: 'models/gemini-2.0-flash-exp' } as any,
+      outputAudioTranscription: { model: 'models/gemini-2.0-flash-exp' } as any,
       systemInstruction: {
         parts: [{ text: `You are a coworker in an office environment, named ${personaName}. The person you are talking to is the Boss, or "${userCallName}".
         
