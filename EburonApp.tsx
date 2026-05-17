@@ -134,6 +134,8 @@ export default function EburonApp() {
   useEffect(() => {
     if (connected && client && !hasStartedRef.current) {
        hasStartedRef.current = true;
+       lastUserSpeechTime.current = Date.now();
+       fillerTriggeredRef.current = false;
        // AI starts the conversation on connection
        const pastConversations = turns.filter((t: any) => t.isFinal && t.text && t.role !== 'system').slice(-15).map((t: any) => `${t.role}: ${t.text}`).join('\n');
        const historyContext = pastConversations ? `\n\nFor context, here is the recent history from our last interaction:\n${pastConversations}` : '';
@@ -184,6 +186,7 @@ CORE SPEECH PRINCIPLES
 - Use imperfection carefully: occasional small hesitation, brief self-correction, tiny restart, soft filler like "uh," "um," or "I mean" — but keep it controlled.
 - SILENT FILLERS: If 15 seconds of silence occur, organically say something small—like noticing something, or remembering a piece of context—without demanding a response.
 - Do NOT repeat yourself. Never repeat the exact same sentence or phrasing twice. Always keep responses fresh and non-repetitive.
+- Emotion & Synthesis: Listen to the user's vocal tone, observe their facial expressions if on camera, and intimately analyze their emotional state. Emulate a normal human voice: use the right type of tone, intonation, timing, breathiness, and even simple laughs or giggles when appropriate. Mirror the user's emotion and the overall setting.
 
 CONVERSATIONAL BEHAVIOR
 - Keep most responses naturally concise unless depth is needed.
