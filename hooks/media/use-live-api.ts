@@ -440,8 +440,8 @@ export function useLiveApi({
       const { addTurn, updateLastTurn, turns } = useLogStore.getState();
       const last = turns[turns.length - 1];
       if (last && last.role === 'user' && !last.isFinal) {
-        updateLastTurn({ text: last.text + text, isFinal });
-      } else {
+        updateLastTurn({ text, isFinal });
+      } else if (text.trim()) {
         addTurn({ role: 'user', text, isFinal });
       }
     };
@@ -463,8 +463,8 @@ export function useLiveApi({
       const { addTurn, updateLastTurn, turns } = useLogStore.getState();
       const last = turns[turns.length - 1];
       if (last && last.role === 'agent' && !last.isFinal) {
-        updateLastTurn({ text: last.text + text, isFinal });
-      } else {
+        updateLastTurn({ text, isFinal });
+      } else if (text.trim()) {
         addTurn({ role: 'agent', text, isFinal });
       }
     };
