@@ -57,6 +57,11 @@ export default function EburonApp() {
   const [memories, setMemories] = useState<any[]>([]);
   const [editingMemoryIndex, setEditingMemoryIndex] = useState<number | null>(null);
   const [editingMemoryValue, setEditingMemoryValue] = useState<string>('');
+  const [editingMemoryType, setEditingMemoryType] = useState<string>('personal');
+  const [memoryFilter, setMemoryFilter] = useState<string>('all');
+  const [isAddingMemory, setIsAddingMemory] = useState<boolean>(false);
+  const [newMemoryValue, setNewMemoryValue] = useState<string>('');
+  const [newMemoryType, setNewMemoryType] = useState<string>('personal');
   const chatAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -130,15 +135,18 @@ export default function EburonApp() {
     if (connected && client && !hasStartedRef.current) {
        hasStartedRef.current = true;
        // AI starts the conversation on connection
+       const pastConversations = turns.filter((t: any) => t.isFinal && t.text && t.role !== 'system').slice(-15).map((t: any) => `${t.role}: ${t.text}`).join('\n');
+       const historyContext = pastConversations ? `\n\nFor context, here is the recent history from our last interaction:\n${pastConversations}` : '';
+       
        setTimeout(() => {
-         client.send([{ text: `Session started. Give a very casual, short greeting as if we are coworkers passing by or jumping on a call. Pick up from any previous context if there is any. Do NOT offer help.` }]);
+         client.send([{ text: `Session started. Give a very casual, short greeting as if we are coworkers passing by or jumping on a call. Pick up from any previous context if there is any. Do NOT offer help.${historyContext}` }]);
        }, 1000);
     }
     if (!connected) {
       hasStartedRef.current = false;
       fillerTriggeredRef.current = false;
     }
-  }, [connected, client]);
+  }, [connected, client /* turns intentionally omitted */]);
 
   useEffect(() => {
     const enabledTools = tools
@@ -341,6 +349,20 @@ Output only natural spoken text. No stage directions, no brackets, no role label
       setEditingMemoryIndex(null);
     } catch (e) {
       console.error("Error updating memory:", e);
+    }
+  };
+
+  const handleAddMemory = async () => {
+    if (!newMemoryValue.trim()) return;
+    try {
+      await api.saveMemory(newMemoryValue, newMemoryType);
+      const memoryList = await api.fetchMemories();
+      setMemories(memoryList);
+      setIsAddingMemory(false);
+      setNewMemoryValue('');
+      setNewMemoryType('personal');
+    } catch(e) {
+      console.error("Error adding memory:", e);
     }
   };
 
@@ -555,16 +577,58 @@ Output only natural spoken text. No stage directions, no brackets, no role label
 
           <div className="form-group" style={{ marginTop: '24px' }}>
             <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              Stored Memories
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{memories.length} item(s)</span>
+              <span>Stored Memories <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>({memories.length})</span></span>
+              <select 
+                className="form-input" 
+                style={{ width: 'auto', padding: '4px 8px', fontSize: '12px', height: 'auto' }}
+                value={memoryFilter}
+                onChange={(e) => setMemoryFilter(e.target.value)}
+              >
+                <option value="all">All Types</option>
+                <option value="personal">Personal</option>
+                <option value="work">Work</option>
+                <option value="project">Project</option>
+              </select>
             </label>
             <div className="memory-list" style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {memories.length === 0 ? (
+              
+              {!isAddingMemory ? (
+                 <button 
+                   onClick={() => setIsAddingMemory(true)}
+                   style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px dashed var(--border-color)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px' }}
+                 >
+                   + Add New Memory
+                 </button>
+              ) : (
+                 <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--accent-primary)' }}>
+                    <textarea 
+                      className="form-input" 
+                      value={newMemoryValue} 
+                      onChange={(e) => setNewMemoryValue(e.target.value)}
+                      placeholder="E.g. I prefer concise answers..."
+                      rows={2}
+                      autoFocus
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                       <select className="form-input" style={{ width: '120px', padding: '4px', fontSize: '12px', height: 'auto' }} value={newMemoryType} onChange={(e) => setNewMemoryType(e.target.value)}>
+                         <option value="personal">Personal</option>
+                         <option value="work">Work</option>
+                         <option value="project">Project</option>
+                       </select>
+                       <div style={{ display: 'flex', gap: '8px' }}>
+                         <button className="pill-btn" style={{ fontSize: '11px', padding: '4px 8px' }} onClick={() => { setIsAddingMemory(false); setNewMemoryValue(''); }}>Cancel</button>
+                         <button className="pill-btn" style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: 'var(--accent-active)', color: 'var(--bg-main)' }} onClick={handleAddMemory}>Save</button>
+                       </div>
+                    </div>
+                 </div>
+              )}
+
+              {memories.filter((m) => memoryFilter === 'all' || m.type === memoryFilter).length === 0 ? (
                 <div style={{ padding: '16px', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
-                  No memories stored yet. Talk to Beatrice to build context!
+                  No memories found.
                 </div>
               ) : (
-                memories.map((m) => (
+                memories.filter((m) => memoryFilter === 'all' || m.type === memoryFilter).map((m) => (
                   <div key={m.id} className="memory-item" style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {editingMemoryIndex === m.id ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -575,17 +639,24 @@ Output only natural spoken text. No stage directions, no brackets, no role label
                           rows={2}
                           autoFocus
                         />
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                          <button 
-                            className="pill-btn" 
-                            style={{ fontSize: '11px', padding: '4px 8px' }}
-                            onClick={() => setEditingMemoryIndex(null)}
-                          >Cancel</button>
-                          <button 
-                            className="pill-btn" 
-                            style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: 'var(--accent-active)', color: 'var(--bg-main)' }}
-                            onClick={() => handleUpdateMemory(m.id, editingMemoryValue, m.type)}
-                          >Save</button>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                           <select className="form-input" style={{ width: '120px', padding: '4px', fontSize: '12px', height: 'auto' }} value={editingMemoryType} onChange={(e) => setEditingMemoryType(e.target.value)}>
+                             <option value="personal">Personal</option>
+                             <option value="work">Work</option>
+                             <option value="project">Project</option>
+                           </select>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button 
+                              className="pill-btn" 
+                              style={{ fontSize: '11px', padding: '4px 8px' }}
+                              onClick={() => setEditingMemoryIndex(null)}
+                            >Cancel</button>
+                            <button 
+                              className="pill-btn" 
+                              style={{ fontSize: '11px', padding: '4px 8px', backgroundColor: 'var(--accent-active)', color: 'var(--bg-main)' }}
+                              onClick={() => handleUpdateMemory(m.id, editingMemoryValue, editingMemoryType)}
+                            >Save</button>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -599,6 +670,7 @@ Output only natural spoken text. No stage directions, no brackets, no role label
                               onClick={() => {
                                 setEditingMemoryIndex(m.id);
                                 setEditingMemoryValue(m.content);
+                                setEditingMemoryType(m.type || 'personal');
                               }}
                             >
                               <i className="ph ph-note-pencil"></i>
@@ -613,7 +685,16 @@ Output only natural spoken text. No stage directions, no brackets, no role label
                           </div>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '10px', color: 'var(--accent-active)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{m.type}</span>
+                          <span style={{ 
+                             fontSize: '10px', 
+                             color: m.type === 'project' ? '#a855f7' : m.type === 'work' ? '#3b82f6' : 'var(--accent-active)', 
+                             backgroundColor: m.type === 'project' ? 'rgba(168,85,247,0.15)' : m.type === 'work' ? 'rgba(59,130,246,0.15)' : 'rgba(203,251,69,0.1)',
+                             padding: '2px 8px', 
+                             borderRadius: '12px',
+                             textTransform: 'uppercase', 
+                             letterSpacing: '0.5px',
+                             fontWeight: 600
+                          }}>{m.type || 'Personal'}</span>
                           <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{new Date(m.created_at || m.updatedAt).toLocaleDateString()}</span>
                         </div>
                       </>

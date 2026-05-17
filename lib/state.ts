@@ -160,7 +160,7 @@ export const workspaceTools: FunctionCall[] = [
         },
         type: {
           type: "STRING",
-          description: "Type of memory: 'personal' or 'context'"
+          description: "Type of memory: 'personal', 'work', or 'project'"
         }
       },
       required: ["memory", "type"]
