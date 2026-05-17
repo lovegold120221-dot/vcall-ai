@@ -78,12 +78,12 @@ export async function fetchConversations(limit = 100) {
   return res.json();
 }
 
-export async function saveConversationTurn(role: string, content: string) {
+export async function saveConversationTurn(role: string, content: string, session_id?: string) {
   const headers = await getHeaders();
   const res = await fetch("/api/conversations", {
     method: "POST",
     headers,
-    body: JSON.stringify({ role, content })
+    body: JSON.stringify({ role, content, session_id })
   });
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));

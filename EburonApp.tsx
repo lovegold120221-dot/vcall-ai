@@ -78,6 +78,12 @@ export default function EburonApp() {
   const [newMemoryType, setNewMemoryType] = useState<string>('personal');
   const [pendingMemory, setPendingMemory] = useState<{ content: string; type: string; id?: string } | null>(null);
   const [memorySuccessMsg, setMemorySuccessMsg] = useState<string | null>(null);
+  
+  // Session & Timer State
+  const [sessionID, setSessionID] = useState<string>(() => Math.random().toString(36).substring(7));
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const warnedAt19Ref = useRef(false);
+  const warnedAt1950Ref = useRef(false);
 
   // History Filtering State
   const [historySearch, setHistorySearch] = useState('');
@@ -242,7 +248,7 @@ export default function EburonApp() {
       if (last && last.role === 'agent' && !last.isFinal) {
         const interruptedText = last.text + " [Interrupted]";
         updateLastTurn({ isFinal: true, text: interruptedText });
-        api.saveConversationTurn('agent', interruptedText).catch(console.error);
+        api.saveConversationTurn('agent', interruptedText, sessionID).catch(console.error);
       }
     };
 
@@ -252,7 +258,7 @@ export default function EburonApp() {
         updateLastTurn({ isFinal: true });
         // Save Agent turn to backend
         if (last.role === 'agent') {
-           api.saveConversationTurn('agent', last.text).catch(console.error);
+           api.saveConversationTurn('agent', last.text, sessionID).catch(console.error);
         }
       }
     };
@@ -268,7 +274,7 @@ export default function EburonApp() {
        const last = turns[turns.length - 1];
        if (last && last.role === 'user' && !last.isFinal) {
           updateLastTurn({ isFinal: true });
-          api.saveConversationTurn('user', last.text).catch(console.error);
+          api.saveConversationTurn('user', last.text, sessionID).catch(console.error);
        }
        handleOutputTranscription(text, isFinal);
     });
@@ -342,17 +348,45 @@ export default function EburonApp() {
     let interval: NodeJS.Timeout;
      if (connected) {
         interval = setInterval(() => {
+           // Increment timer
+           setTimerSeconds(prev => {
+              const next = prev + 1;
+              
+              // 19:00 Warning
+              if (next === 1140 && !warnedAt19Ref.current) {
+                 warnedAt19Ref.current = true;
+                 client.send([{ text: "SYSTEM: It is now the 19 minute mark of the session. Calmly and warmly inform the user that the session will be cut in about 60 seconds due to technical limits, but they can always reconnect right back. Say it naturally." }]);
+              }
+
+              // 19:50 Goodbye
+              if (next === 1190 && !warnedAt1950Ref.current) {
+                 warnedAt1950Ref.current = true;
+                 client.send([{ text: "SYSTEM: 19:50 mark reached. Say a final, warm goodbye as the session is about to be terminated in 10 seconds. Pick up from current context." }]);
+              }
+
+              // 20:00 Terminate
+              if (next >= 1200) {
+                 disconnect();
+              }
+
+              return next;
+           });
+
            if (!fillerTriggeredRef.current && !aiIsSpeakingRef.current) {
               const now = Date.now();
               if (now - lastUserSpeechTime.current > 15000) {
                  fillerTriggeredRef.current = true;
-                 client.send([{ text: "The user has been silent for 15 seconds. Say something very short and casual to fill the silence organically, drawing upon previous context or what you were just talking about. Do NOT ask if they need help or if they are still there." }]);
+                 client.send([{ text: "The user has been silent for 15 seconds. Since you are human-like and were relaxing in the silence, make a soft, sleepy moan or a gentle human sigh, then say something very short and casual—like you were just waking up or zoning out. Drawing upon previous context. Do NOT ask if they need help." }]);
               }
            }
         }, 1000);
+     } else {
+        setTimerSeconds(0);
+        warnedAt19Ref.current = false;
+        warnedAt1950Ref.current = false;
      }
      return () => clearInterval(interval);
-  }, [connected, client]);
+  }, [connected, client, disconnect]);
 
   useEffect(() => {
     if (connected && client && !hasStartedRef.current) {
@@ -364,7 +398,10 @@ export default function EburonApp() {
        const historyContext = pastConversations ? `\n\nFor context, here is the recent history from our last interaction:\n${pastConversations}` : '';
        
        setTimeout(() => {
-         client.send([{ text: `Session started. Give a very casual, short greeting as if we are coworkers passing by or jumping on a call. Pick up from any previous context if there is any. Do NOT offer help.${historyContext}` }]);
+         const intro = `Session started. Give a very casual, short greeting as if we are coworkers passing by or jumping on a call. Pick up from any previous context if there is any. Do NOT offer help.${historyContext}`;
+         client.send([{ text: intro }]);
+         // We don't necessarily want to log this "SYSTEM" instruction to the user, but we could log it for debugging if needed.
+         // However, the AI will respond, and THAT will be logged and saved.
        }, 1000);
     }
     if (!connected) {
@@ -557,6 +594,7 @@ Output only natural spoken text. No stage directions, no brackets, no role label
     if (!message.trim()) return;
     client.send({ text: message });
     useLogStore.getState().addTurn({ role: 'user', text: message, isFinal: true });
+    api.saveConversationTurn('user', message, sessionID).catch(console.error);
     setMessage('');
   };
 
@@ -580,6 +618,7 @@ Output only natural spoken text. No stage directions, no brackets, no role label
       if (connected) {
          client.send({ text: prompt });
          useLogStore.getState().addTurn({ role: 'user', text: prompt, isFinal: true });
+         api.saveConversationTurn('user', prompt, sessionID).catch(console.error);
       }
       else {
         useLogStore.getState().addTurn({ role: 'user', text: prompt, isFinal: true });
@@ -650,6 +689,31 @@ Output only natural spoken text. No stage directions, no brackets, no role label
           <img src="https://eburon.ai/icon-eburon.svg" alt="Eburon Logo" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
           <span className="ai-name">Eburon AI</span>
         </div>
+
+        {connected && (
+          <div className="session-timer" style={{
+            position: 'absolute',
+            left: '50%',
+            top: '28px',
+            transform: 'translateX(-50%)',
+            fontSize: '12px',
+            fontFamily: 'monospace',
+            color: timerSeconds >= 1140 ? '#ff8888' : 'var(--text-muted)',
+            backgroundColor: 'rgba(0,0,0,0.2)',
+            padding: '2px 10px',
+            borderRadius: '12px',
+            border: `1px solid ${timerSeconds >= 1140 ? 'rgba(255,0,0,0.2)' : 'var(--border-color)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontWeight: 600,
+            zIndex: 10
+          }}>
+            <i className={`ph-fill ph-clock${timerSeconds >= 1140 ? '-countdown' : ''}`} style={{ color: timerSeconds >= 1140 ? '#ff4d4d' : 'var(--accent-active)' }}></i>
+            {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
+            {timerSeconds >= 1140 && <span style={{ marginLeft: '4px', fontSize: '10px', textTransform: 'uppercase' }}>Limiting...</span>}
+          </div>
+        )}
 
         {memorySuccessMsg && (
           <div className="memory-toast" style={{

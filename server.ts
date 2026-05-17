@@ -246,7 +246,7 @@ async function startServer() {
     try {
       if (!supabase) throw new Error("Database not connected (Supabase keys missing)");
       const { uid } = req.user;
-      const { role, content } = req.body;
+      const { role, content, session_id } = req.body;
 
       if (!role || !content) {
         return res.status(400).json({ error: "Missing role or content" });
@@ -257,7 +257,8 @@ async function startServer() {
         .insert({
           uid,
           role,
-          content
+          content,
+          session_id
         })
         .select()
         .single();
