@@ -137,7 +137,93 @@ export default function EburonApp() {
   }, [volume]);
 
   useEffect(() => {
-     let interval: NodeJS.Timeout;
+    if (!client) return;
+
+    const { addTurn, updateLastTurn } = useLogStore.getState();
+
+    const handleInputTranscription = (text: string, isFinal: boolean) => {
+      const currentTurns = useLogStore.getState().turns;
+      const last = currentTurns[currentTurns.length - 1];
+      
+      // If we're continuing a user turn that isn't final, update it.
+      // Note: We use the text as-is because the API usually sends the current best guess for the segment.
+      if (last && last.role === 'user' && !last.isFinal) {
+        updateLastTurn({
+          text: text, 
+          isFinal,
+        });
+      } else if (text.trim()) {
+        addTurn({ role: 'user', text, isFinal });
+      }
+    };
+
+    const handleOutputTranscription = (text: string, isFinal: boolean) => {
+      const currentTurns = useLogStore.getState().turns;
+      const last = currentTurns[currentTurns.length - 1];
+      
+      if (last && last.role === 'agent' && !last.isFinal) {
+        updateLastTurn({
+          text: text,
+          isFinal,
+        });
+      } else if (text.trim()) {
+        addTurn({ role: 'agent', text, isFinal });
+      }
+    };
+
+    const handleContent = (serverContent: any) => {
+      if (serverContent.modelTurn) {
+        const text = serverContent.modelTurn.parts
+          ?.map((p: any) => p.text)
+          .filter(Boolean)
+          .join(' ') ?? '';
+        
+        if (!text) return;
+
+        const currentTurns = useLogStore.getState().turns;
+        const last = currentTurns.at(-1);
+
+        if (last?.role === 'agent' && !last.isFinal) {
+          updateLastTurn({
+            text: last.text + text,
+          });
+        } else {
+          addTurn({ role: 'agent', text, isFinal: false });
+        }
+      }
+    };
+
+    const handleInterrupted = () => {
+      const last = useLogStore.getState().turns.at(-1);
+      if (last && last.role === 'agent' && !last.isFinal) {
+        updateLastTurn({ isFinal: true, text: last.text + " [Interrupted]" });
+      }
+    };
+
+    const handleTurnComplete = () => {
+      const last = useLogStore.getState().turns.at(-1);
+      if (last && !last.isFinal) {
+        updateLastTurn({ isFinal: true });
+      }
+    };
+
+    client.on('inputTranscription', handleInputTranscription);
+    client.on('outputTranscription', handleOutputTranscription);
+    client.on('content', handleContent);
+    client.on('interrupted', handleInterrupted);
+    client.on('turncomplete', handleTurnComplete);
+
+    return () => {
+      client.off('inputTranscription', handleInputTranscription);
+      client.off('outputTranscription', handleOutputTranscription);
+      client.off('content', handleContent);
+      client.off('interrupted', handleInterrupted);
+      client.off('turncomplete', handleTurnComplete);
+    };
+  }, [client]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
      if (connected) {
         interval = setInterval(() => {
            if (!fillerTriggeredRef.current && !aiIsSpeakingRef.current) {
