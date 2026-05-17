@@ -282,6 +282,104 @@ export function useLiveApi({
           }
         }
 
+        if (fc.name === 'search_contacts') {
+          const { query } = fc.args as any;
+          const token = useAuth.getState().googleAccessToken;
+          if (!token) {
+            responsePayload = { error: 'No Google access token found, please authenticate.' };
+          } else {
+            try {
+              const url = new URL('https://people.googleapis.com/v1/people/me/connections');
+              url.searchParams.append('personFields', 'names,emailAddresses');
+              const res = await fetch(url.toString(), {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              const data = await res.json();
+              if (query) {
+                  // Simple client-side filtering
+                  data.connections = data.connections?.filter((c: any) => 
+                      c.names?.some((n: any) => n.displayName.toLowerCase().includes(query.toLowerCase()))
+                  );
+              }
+              responsePayload = data;
+            } catch (e: any) {
+              responsePayload = { error: e.message };
+            }
+          }
+        }
+
+        if (fc.name === 'get_current_date') {
+          responsePayload = { date: new Date().toISOString() };
+        }
+
+        if (fc.name === 'get_user_location') {
+          try {
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject);
+            });
+            responsePayload = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy
+            };
+          } catch (e: any) {
+            responsePayload = { error: e.message || 'Geolocation failed' };
+          }
+        }
+
+        if (fc.name === 'search_places') {
+          const { query, location } = fc.args as any;
+          const token = useAuth.getState().googleAccessToken;
+          // Places API usually uses API Key, but we can try to use the token if proxied or use the fetch tool
+          // Actually, for consistency, we'll try to fetch it.
+          try {
+            // Using the Places API (New)
+            const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location'
+              },
+              body: JSON.stringify({
+                textQuery: query,
+                locationBias: location ? {
+                  circle: {
+                    center: {
+                      latitude: parseFloat(location.split(',')[0]),
+                      longitude: parseFloat(location.split(',')[1])
+                    },
+                    radius: 5000.0
+                  }
+                } : undefined
+              })
+            });
+            responsePayload = await res.json();
+          } catch (e: any) {
+            responsePayload = { error: e.message };
+          }
+        }
+
+        if (fc.name === 'list_contacts') {
+          const { pageSize } = fc.args as any;
+          const token = useAuth.getState().googleAccessToken;
+          if (!token) {
+            responsePayload = { error: 'No Google access token found.' };
+          } else {
+            try {
+              const url = new URL('https://people.googleapis.com/v1/people/me/connections');
+              url.searchParams.append('personFields', 'names,emailAddresses,phoneNumbers');
+              url.searchParams.append('pageSize', (pageSize || 10).toString());
+              const res = await fetch(url.toString(), {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              responsePayload = await res.json();
+            } catch (e: any) {
+              responsePayload = { error: e.message };
+            }
+          }
+        }
+
         // Prepare the response
         functionResponses.push({
           id: fc.id,

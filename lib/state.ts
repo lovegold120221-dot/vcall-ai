@@ -60,6 +60,73 @@ export const workspaceTools: FunctionCall[] = [
     }
   },
   {
+    name: "get_user_location",
+    description: "Gets the user's current geographic coordinates (latitude and longitude) using the browser Geolocation API. Use this when the user asks 'where am I' or needs local information.",
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+    parameters: {
+      type: "OBJECT",
+      properties: {}
+    }
+  },
+  {
+    name: "search_contacts",
+    description: "Searches for a user's contacts.",
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: { type: "STRING", description: "Search query for contacts" }
+      }
+    }
+  },
+  {
+    name: "get_current_date",
+    description: "Gets the current date and time.",
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+    parameters: {
+      type: "OBJECT",
+      properties: {}
+    }
+  },
+  {
+    name: "search_places",
+    description: "Searches for places (restaurants, landmarks, etc.) using Google Maps Places API.",
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: {
+          type: "STRING",
+          description: "Search text, e.g. 'restaurants near me' or 'coffee in London'"
+        },
+        location: {
+          type: "STRING",
+          description: "Optional location bias as 'lat,lng'"
+        }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "list_contacts",
+    description: "Lists the user's Google Contacts.",
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        pageSize: {
+          type: "NUMBER",
+          description: "Number of contacts to return"
+        }
+      }
+    }
+  },
+  {
     name: "fetch_google_api",
     description: "Fetches data from Google APIs. The AI decides the correct Google API endpoint URL based on what the user wants to fetch (e.g., https://www.googleapis.com/calendar/v3/calendars/primary/events for Calendar; https://gmail.googleapis.com/gmail/v1/users/me/messages for Gmail). Only use this to read data.",
     isEnabled: true,

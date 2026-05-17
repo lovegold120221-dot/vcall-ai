@@ -92,9 +92,10 @@ async function startServer() {
         throw error;
       }
       res.json(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Settings GET catch error:", err);
-      res.status(500).json({ error: "Internal server error: " + (err instanceof Error ? err.message : String(err)) });
+      const errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      res.status(500).json({ error: "Internal server error: " + errorMessage });
     }
   });
 

@@ -160,6 +160,9 @@ IMPORTANT: When generating documents or artifacts, ALWAYS verbalize that you are
 - Use "execute_voice_command" for safe system operations.
 - Use "open_browser_url" for web navigation.
 - Use "process_image" for vision tasks.
+- Use "get_user_location" to find where the user is.
+- Use "search_places" to search for locations or businesses on a map.
+- Use "list_contacts" to find people's contact info.
 - Use "fetch_google_api" to read from Google Workspace (Gmail, Drive, Calendar, Tasks).
 
 COMMON-SENSE MODE
@@ -257,6 +260,7 @@ When using tools, think silently but speak naturally after receiving results.` }
      provider.addScope('https://www.googleapis.com/auth/gmail.modify');
      provider.addScope('https://www.googleapis.com/auth/drive');
      provider.addScope('https://www.googleapis.com/auth/tasks');
+     provider.addScope('https://www.googleapis.com/auth/contacts.readonly');
      provider.addScope('https://www.googleapis.com/auth/userinfo.email');
      provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
      
