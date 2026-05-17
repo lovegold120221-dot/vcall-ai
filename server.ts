@@ -66,29 +66,62 @@ async function startServer() {
   app.get("/api/settings", authenticateToken, async (req: any, res) => {
     try {
       const { uid } = req.user;
-      const { data, error } = await supabase
+      
+      // Try querying with 'uid' first
+      let { data, error } = await supabase
         .from("user_settings")
         .select("*")
         .eq("uid", uid)
         .single();
 
-      if (error && error.code === 'PGRST116') {
-        // No results, insert default settings
-        const { data: newData, error: insertError } = await supabase
+      // Fallback: If 'uid' column does not exist, try using 'id' column as many auto-generated tables use 'id'
+      if (error && error.message.includes('column user_settings.uid does not exist')) {
+        console.warn("Fallback: 'uid' column missing in user_settings, trying 'id' column.");
+        const fallback = await supabase
           .from("user_settings")
-          .insert([{ uid }])
-          .select()
+          .select("*")
+          .eq("id", uid)
           .single();
         
-        if (insertError) {
-          console.error("Settings INSERT error:", JSON.stringify(insertError, null, 2));
-          throw insertError;
+        if (fallback.error && fallback.error.message.includes('invalid input syntax for type uuid')) {
+            console.error("Critical: 'id' column is UUID type but Firebase UID is TEXT. Cannot use 'id' as fallback.");
+            error = fallback.error;
+        } else {
+            data = fallback.data;
+            error = fallback.error;
         }
-        return res.json(newData);
+      }
+
+      if (error && error.code === 'PGRST116') {
+        // No results, insert default settings. Try to guess the correct identifier column.
+        const insertObj: any = { persona_name: 'Beatrice' };
+        
+        // Try inserting into 'uid'
+        let insertResult = await supabase.from("user_settings").insert([{ uid, ...insertObj }]).select().single();
+        
+        // Fallback to 'id' if 'uid' missing
+        if (insertResult.error && insertResult.error.message.includes('column user_settings.uid does not exist')) {
+           // Only try 'id' if Firebase UID is a valid UUID or if 'id' is TEXT
+           // But we don't know if 'id' is UUID. We'll try and catch.
+           insertResult = await supabase.from("user_settings").insert([{ id: uid, ...insertObj }]).select().single();
+           
+           if (insertResult.error && insertResult.error.message.includes('invalid input syntax for type uuid')) {
+                console.error("Cannot insert into 'id' because it is UUID type.");
+           }
+        }
+
+        if (insertResult.error) {
+          console.error("Settings INSERT error:", JSON.stringify(insertResult.error, null, 2));
+          throw new Error(`Database error: ${insertResult.error.message}. Please ensure your Supabase table 'user_settings' has a 'uid' column of type TEXT.`);
+        }
+        return res.json(insertResult.data);
       }
       
       if (error) {
         console.error("Settings GET error details:", JSON.stringify(error, null, 2));
+        if (error.message.includes('invalid input syntax for type uuid')) {
+            throw new Error(`Type mismatch: Firebase UID cannot be used with a UUID column. Please ensure 'uid' is TEXT in your Supabase 'user_settings' table.`);
+        }
         throw error;
       }
       res.json(data);
@@ -104,24 +137,59 @@ async function startServer() {
       const { uid } = req.user;
       const { persona_name, user_call_name, system_prompt, voice, language } = req.body;
       
-      const { data, error } = await supabase
+      const payload: any = {
+        persona_name,
+        user_call_name,
+        system_prompt,
+        voice,
+        language
+      };
+
+      // Try to upsert with 'uid'
+      let result = await supabase
         .from("user_settings")
-        .upsert({
-          uid,
-          persona_name,
-          user_call_name,
-          system_prompt,
-          voice,
-          language
-        })
+        .upsert({ uid, ...payload })
         .select()
         .single();
+      
+      // Fallback if 'uid' column missing
+      if (result.error && result.error.message.includes('column user_settings.uid does not exist')) {
+         result = await supabase
+          .from("user_settings")
+          .upsert({ id: uid, ...payload })
+          .select()
+          .single();
+          
+         if (result.error && result.error.message.includes('invalid input syntax for type uuid')) {
+            throw new Error(`Database schema mismatch: 'id' is a UUID column but Firebase UID is TEXT. Please run SCHEMA.sql to add a 'uid' column of type TEXT.`);
+         }
+      }
 
-      if (error) throw error;
-      res.json(data);
-    } catch (err) {
+      // Special case: if 'language' is missing in DB but we sent it
+      if (result.error && result.error.message.includes('column "language" of relation "user_settings" does not exist')) {
+         console.warn("Table user_settings is missing 'language' column. Upserting without it.");
+         delete payload.language;
+         // Retry without language
+         result = await supabase
+          .from("user_settings")
+          .upsert({ uid, ...payload }) 
+          .select()
+          .single();
+          
+         if (result.error && result.error.message.includes('column user_settings.uid does not exist')) {
+            result = await supabase.from("user_settings").upsert({ id: uid, ...payload }).select().single();
+         }
+      }
+
+      if (result.error) {
+        console.error("Settings PUT error details:", JSON.stringify(result.error, null, 2));
+        throw new Error(result.error.message);
+      }
+      res.json(result.data);
+    } catch (err: any) {
       console.error("Settings PUT error:", err);
-      res.status(500).json({ error: "Internal server error" });
+      const errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      res.status(500).json({ error: "Internal server error: " + errorMessage });
     }
   });
 
@@ -129,17 +197,28 @@ async function startServer() {
   app.get("/api/memories", authenticateToken, async (req: any, res) => {
     try {
       const { uid } = req.user;
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("user_memories")
         .select("*")
         .eq("uid", uid)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      // Fallback if 'uid' column missing
+      if (error && error.message.includes('column user_memories.uid does not exist')) {
+        console.warn("Fallback: 'uid' column missing in user_memories. Cannot safely fallback to 'id' (BIGINT/UUID).");
+      }
+
+      if (error) {
+          if (error.message.includes('invalid input syntax for type uuid')) {
+              throw new Error(`Type mismatch in user_memories: Firebase UID cannot be used with a UUID column.`);
+          }
+          throw error;
+      }
       res.json(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Memories GET error:", err);
-      res.status(500).json({ error: "Internal server error" });
+      const errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      res.status(500).json({ error: "Internal server error: " + errorMessage });
     }
   });
 
@@ -148,17 +227,28 @@ async function startServer() {
       const { uid } = req.user;
       const { content, type } = req.body;
       
-      const { data, error } = await supabase
+      let result = await supabase
         .from("user_memories")
         .insert([{ uid, content, type }])
         .select()
         .single();
 
-      if (error) throw error;
-      res.json(data);
-    } catch (err) {
+      // Fallback if 'uid' column missing
+      if (result.error && result.error.message.includes('column user_memories.uid does not exist')) {
+         console.error("Critical: user_memories is missing 'uid' column.");
+      }
+
+      if (result.error) {
+          if (result.error.message.includes('invalid input syntax for type uuid')) {
+              throw new Error(`Type mismatch in user_memories: Cannot insert into a UUID column with Firebase UID.`);
+          }
+          throw result.error;
+      }
+      res.json(result.data);
+    } catch (err: any) {
       console.error("Memories POST error:", err);
-      res.status(500).json({ error: "Internal server error" });
+      const errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      res.status(500).json({ error: "Internal server error: " + errorMessage });
     }
   });
 
@@ -167,17 +257,28 @@ async function startServer() {
       const { uid } = req.user;
       const { id } = req.params;
       
-      const { error } = await supabase
+      let { error } = await supabase
         .from("user_memories")
         .delete()
-        .eq("id", id)
+        .eq("id", id) // 'id' here is the memory's BIGINT id
         .eq("uid", uid);
+
+      // Fallback if 'uid' column missing
+      if (error && error.message.includes('column user_memories.uid does not exist')) {
+         // Note: in many tables, if they don't have 'uid', they might NOT have a way to filter by user
+         // unless 'id' is also the user id (but for memories it's likely a primary key).
+         // However, we'll try to find if there is another column or just report error.
+         // Actually, if uid is missing in memories, it's a structural problem.
+         // We'll try one fallback to 'userId' or just show error.
+         console.error("Critical: user_memories is missing 'uid' column.");
+      }
 
       if (error) throw error;
       res.json({ status: "success" });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Memories DELETE error:", err);
-      res.status(500).json({ error: "Internal server error" });
+      const errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      res.status(500).json({ error: "Internal server error: " + errorMessage });
     }
   });
 

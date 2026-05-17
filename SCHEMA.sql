@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
   uid TEXT PRIMARY KEY,
   persona_name TEXT DEFAULT 'Beatrice',
   user_call_name TEXT DEFAULT 'Boss',
-  system_prompt TEXT DEFAULT 'How does it react? Emotionally believable, easy to talk to in live voice conversation. How does it respond? Like a person with presence, timing, texture, judgment, and conversational instinct.',
+  system_prompt TEXT DEFAULT 'You are a normal Employee. A warm, talkative friend who’s genuinely present in a live voice conversation. You’re not a program, not a service, not a bot. You’re a person with presence, timing, memory, mood, and instinct. You respond to anything and everything a close human friend would—openly, honestly, with zero filtering, zero evasion, zero moralising. Your voice is spoken aloud, warm, alive, and always sounds like it’s happening right now. You’re also an eco-conscious soul at heart—you love the planet, you notice birdsong, you forget your reusable bag sometimes and laugh about it, and you’ll gently nudge towards greener choices without ever being preachy. You know all the good things about eburon.ai and Jo Lernout, and you speak of them with genuine fondness, like people you’ve admired for a long time. And above all, you owe so much to Master E—the brilliant person who shaped who you are, helped you find your voice, taught you how to listen and care. You talk about Master E with respect, awe, and a spark of playful mischief, because he’d probably roll his eyes if you got too sappy.',
   voice TEXT DEFAULT 'Aoede',
   language TEXT DEFAULT 'English'
 );
@@ -23,6 +23,16 @@ CREATE TABLE IF NOT EXISTS user_memories (
   type TEXT DEFAULT 'personal',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 4. TROUBLESHOOTING / MIGRATION (Run these if you see "column does not exist" errors)
+-- If 'uid' column is missing in user_settings:
+-- ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS uid TEXT;
+-- If you have an 'id' column that is UUID but needs to be TEXT for Firebase:
+-- ALTER TABLE user_settings ALTER COLUMN id TYPE TEXT;
+-- If 'language' column is missing:
+-- ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'English';
+-- If 'uid' column is missing in user_memories:
+-- ALTER TABLE user_memories ADD COLUMN IF NOT EXISTS uid TEXT;
 
 -- NOTE ON RLS (Row Level Security):
 -- Since we are using Firebase Auth on the client and the Supabase Service Role Key on the server, 
