@@ -24,7 +24,7 @@ import { LiveConnectConfig, Modality, LiveServerToolCall } from '@google/genai';
 import { AudioStreamer } from '../../lib/audio-streamer';
 import { audioContext } from '../../lib/utils';
 import VolMeterWorket from '../../lib/worklets/vol-meter';
-import { useLogStore, useSettings } from '@/lib/state';
+import { useLogStore, useSettings, useAuth } from '@/lib/state';
 import { auth } from '@/lib/firebase';
 import * as api from '@/lib/api-client';
 
@@ -118,7 +118,7 @@ export function useLiveApi({
         
         if (fc.name === 'fetch_google_api') {
            const { url, method } = fc.args as any;
-           const token = localStorage.getItem('google_access_token');
+           const token = useAuth.getState().googleAccessToken;
            if (!token) {
                responsePayload = { error: 'No Google access token found, please authenticate with Google (Sign in option).' };
            } else {
@@ -165,6 +165,121 @@ export function useLiveApi({
            uiState.useUI.getState().setActiveWorkspaceResult({
               artifact: { title, type, content, language }
            });
+        }
+
+        if (fc.name === 'create_calendar_event') {
+          const { summary, location, startTime, endTime } = fc.args as any;
+          const token = useAuth.getState().googleAccessToken;
+          if (!token) {
+            responsePayload = { error: 'No Google access token found, please authenticate.' };
+          } else {
+            try {
+              const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+                method: 'POST',
+                headers: { 
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  summary,
+                  location,
+                  start: { dateTime: startTime },
+                  end: { dateTime: endTime }
+                })
+              });
+              responsePayload = await res.json();
+            } catch (e: any) {
+              responsePayload = { error: e.message };
+            }
+          }
+        }
+
+        if (fc.name === 'send_email') {
+          const { recipient, subject, body } = fc.args as any;
+          const token = useAuth.getState().googleAccessToken;
+          if (!token) {
+            responsePayload = { error: 'No Google access token found, please authenticate.' };
+          } else {
+            try {
+              // Gmail API uses base64url encoded RFC822 messages
+              const utf8Encoder = new TextEncoder();
+              const email = [
+                `To: ${recipient}`,
+                `Subject: ${subject}`,
+                '',
+                body
+              ].join('\r\n');
+              const encodedEmail = btoa(email).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+              
+              const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+                method: 'POST',
+                headers: { 
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ raw: encodedEmail })
+              });
+              responsePayload = await res.json();
+            } catch (e: any) {
+              responsePayload = { error: e.message };
+            }
+          }
+        }
+
+        if (fc.name === 'list_gmail_messages') {
+          const { q } = fc.args as any;
+          const token = useAuth.getState().googleAccessToken;
+          if (!token) {
+            responsePayload = { error: 'No Google access token found, please authenticate.' };
+          } else {
+            try {
+              const url = new URL('https://gmail.googleapis.com/gmail/v1/users/me/messages');
+              if (q) url.searchParams.append('q', q);
+              const res = await fetch(url.toString(), {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              responsePayload = await res.json();
+            } catch (e: any) {
+              responsePayload = { error: e.message };
+            }
+          }
+        }
+
+        if (fc.name === 'get_gmail_message') {
+          const { id } = fc.args as any;
+          const token = useAuth.getState().googleAccessToken;
+          if (!token) {
+            responsePayload = { error: 'No Google access token found, please authenticate.' };
+          } else {
+            try {
+              const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              responsePayload = await res.json();
+            } catch (e: any) {
+              responsePayload = { error: e.message };
+            }
+          }
+        }
+
+        if (fc.name === 'list_calendar_events') {
+          const { timeMin, timeMax } = fc.args as any;
+          const token = useAuth.getState().googleAccessToken;
+          if (!token) {
+            responsePayload = { error: 'No Google access token found, please authenticate.' };
+          } else {
+            try {
+              const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+              if (timeMin) url.searchParams.append('timeMin', timeMin);
+              if (timeMax) url.searchParams.append('timeMax', timeMax);
+              const res = await fetch(url.toString(), {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              responsePayload = await res.json();
+            } catch (e: any) {
+              responsePayload = { error: e.message };
+            }
+          }
         }
 
         // Prepare the response

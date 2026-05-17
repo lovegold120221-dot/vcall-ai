@@ -10,6 +10,56 @@ import { FunctionResponseScheduling } from '@google/genai';
 
 export const workspaceTools: FunctionCall[] = [
   {
+    name: "list_gmail_messages",
+    description: "Lists Gmail messages for the user. Use this to check for new emails or a specific query.",
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        q: {
+          type: "STRING",
+          description: "Search query. e.g. 'from:boss' or 'is:unread'"
+        }
+      }
+    }
+  },
+  {
+    name: "get_gmail_message",
+    description: "Gets the content of a specific Gmail message by ID.",
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        id: {
+          type: "STRING",
+          description: "The ID of the Gmail message."
+        }
+      },
+      required: ["id"]
+    }
+  },
+  {
+    name: "list_calendar_events",
+    description: "Lists calendar events for the user.",
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        timeMin: {
+          type: "STRING",
+          description: "Lower bound (exclusive) for an event's end time to filter by. ISO format."
+        },
+        timeMax: {
+          type: "STRING",
+          description: "Upper bound (exclusive) for an event's start time to filter by. ISO format."
+        }
+      }
+    }
+  },
+  {
     name: "fetch_google_api",
     description: "Fetches data from Google APIs. The AI decides the correct Google API endpoint URL based on what the user wants to fetch (e.g., https://www.googleapis.com/calendar/v3/calendars/primary/events for Calendar; https://gmail.googleapis.com/gmail/v1/users/me/messages for Gmail). Only use this to read data.",
     isEnabled: true,
@@ -131,6 +181,17 @@ export const useSettings = create<{
 }));
 
 /**
+ * Auth
+ */
+export const useAuth = create<{
+  googleAccessToken: string | null;
+  setGoogleAccessToken: (token: string | null) => void;
+}>(set => ({
+  googleAccessToken: null,
+  setGoogleAccessToken: token => set({ googleAccessToken: token }),
+}));
+
+/**
  * UI
  */
 export const useUI = create<{
@@ -167,8 +228,8 @@ export const useTools = create<{
   removeTool: (toolName: string) => void;
   updateTool: (oldName: string, updatedTool: FunctionCall) => void;
 }>(set => ({
-  tools: customerSupportTools,
-  template: 'customer-support',
+  tools: toolsets['personal-assistant'],
+  template: 'personal-assistant',
   setTemplate: (template: Template) => {
     set({ tools: toolsets[template], template });
     useSettings.getState().setSystemPrompt(systemPrompts[template]);

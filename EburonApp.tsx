@@ -9,6 +9,7 @@ import { LANGUAGES } from './lib/languages';
 import { auth, testConnection } from './lib/firebase';
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 import * as api from './lib/api-client';
+import { useAuth } from './lib/state';
 
 export default function EburonApp() {
   const [isAuthOpen, setIsAuthOpen] = useState(true);
@@ -251,15 +252,19 @@ When using tools, think silently but speak naturally after receiving results.` }
   const handleGoogleLogin = async () => {
      setAuthError('');
      const provider = new GoogleAuthProvider();
+     // Google Workspace scopes for Gemini function calling
      provider.addScope('https://www.googleapis.com/auth/calendar');
      provider.addScope('https://www.googleapis.com/auth/gmail.modify');
      provider.addScope('https://www.googleapis.com/auth/drive');
      provider.addScope('https://www.googleapis.com/auth/tasks');
+     provider.addScope('https://www.googleapis.com/auth/userinfo.email');
+     provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
+     
      try {
         const result = await signInWithPopup(auth, provider);
         const credential = GoogleAuthProvider.credentialFromResult(result);
         if (credential?.accessToken) {
-            localStorage.setItem('google_access_token', credential.accessToken);
+            useAuth.getState().setGoogleAccessToken(credential.accessToken);
         }
      } catch (err: any) {
         setAuthError(err.message);
@@ -439,25 +444,22 @@ When using tools, think silently but speak naturally after receiving results.` }
              <span>{isScreenShareActive ? 'Stop Share' : 'Share Screen'}</span>
           </button>
 
-          <button className={`nav-item`} onClick={() => setActiveOverlay('settings')}>
+          <button className={`nav-item ${isWebcamActive ? 'active' : ''}`} onClick={isWebcamActive ? stopStream : startWebcam}>
              <div className="icon-wrapper">
-               <i className="ph-fill ph-gear"></i>
+               <div className="icon-pulse" style={{ 
+                 width: isWebcamActive ? `32px` : '0px', 
+                 height: isWebcamActive ? `32px` : '0px',
+                 opacity: isWebcamActive ? 0.3 : 0,
+                 animation: isWebcamActive ? 'pulse-anim 2s infinite' : 'none'
+               }}></div>
+               <i className={`ph-fill ph-video-camera${isWebcamActive ? '' : '-slash'}`}></i>
              </div>
-             <span>Settings</span>
+             <span>{isWebcamActive ? 'Stop Cam' : 'Camera'}</span>
           </button>
         </nav>
       </div>
 
-      {/* Control Tray (Floating) */}
-      <div className="control-tray">
-         <button 
-           className={`tray-btn ${isWebcamActive ? 'active' : ''}`} 
-           onClick={isWebcamActive ? stopStream : startWebcam}
-           title={isWebcamActive ? "Turn off camera" : "Turn on camera"}
-         >
-           <i className={`ph-bold ph-video-camera${isWebcamActive ? '' : '-slash'}`}></i>
-         </button>
-      </div>
+      {/* Video Overlay */}
 
       <video ref={videoRef} autoPlay playsInline muted style={{ position: 'fixed', bottom: '160px', right: '20px', width: '160px', borderRadius: '16px', border: '2px solid var(--accent-primary)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', zIndex: 40, display: stream ? 'block' : 'none', objectFit: 'cover', aspectRatio: '16/9' }} />
 
@@ -608,7 +610,10 @@ When using tools, think silently but speak naturally after receiving results.` }
              }
           }}>Save Now</button>
 
-          <div className="danger-action" onClick={() => { signOut(auth); }}>
+          <div className="danger-action" onClick={() => { 
+             signOut(auth); 
+             useAuth.getState().setGoogleAccessToken(null);
+          }}>
             Log Out
           </div>
         </div>
