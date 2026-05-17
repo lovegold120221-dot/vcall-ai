@@ -226,7 +226,15 @@ async function startServer() {
         .order("created_at", { ascending: false })
         .limit(Number(limit));
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116' || error.message.includes('cache')) {
+          return res.status(503).json({ 
+            error: "Conversation database table is missing. Please run the SQL in SCHEMA.sql in your Supabase SQL Editor to enable history.",
+            setupRequired: true
+          });
+        }
+        throw error;
+      }
       res.json(data ? data.reverse() : []);
     } catch (err: any) {
       console.error("Fetch conversations error:", err.message);
@@ -254,7 +262,13 @@ async function startServer() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST116' || error.message.includes('cache')) {
+          console.warn("Skipping conversation sync: table missing.");
+          return res.status(204).send(); // Silently fail for inserts if table missing
+        }
+        throw error;
+      }
       res.json(data);
     } catch (err: any) {
       console.error("Save conversation turn error:", err.message);

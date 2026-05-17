@@ -81,8 +81,10 @@ export default function EburonApp() {
 
   // History Filtering State
   const [historySearch, setHistorySearch] = useState('');
-  const [historyTypeFilter, setHistoryTypeFilter] = useState<'all' | 'user' | 'agent' | 'system'>('all');
+  const [historyRoleFilter, setHistoryRoleFilter] = useState<'all' | 'user' | 'agent' | 'system'>('all');
+  const [historyToolFilter, setHistoryToolFilter] = useState<'all' | 'search' | 'memory' | 'meeting' | 'artifact' | 'command'>('all');
   const [historyDateRange, setHistoryDateRange] = useState<'all' | 'today' | 'week'>('all');
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const chatAreaRef = useRef<HTMLDivElement>(null);
 
@@ -115,19 +117,24 @@ export default function EburonApp() {
             setMemories(memoryList);
 
             // Fetch previous conversations
-            const { turns, addTurn } = useLogStore.getState();
-            if (turns.length === 0) {
-               const prevTurns = await api.fetchConversations(50);
-               if (prevTurns && prevTurns.length > 0) {
-                  prevTurns.forEach((t: any) => {
-                     addTurn({
-                        role: t.role,
-                        text: t.content,
-                        isFinal: true,
-                        timestamp: t.created_at ? new Date(t.created_at) : new Date()
+            try {
+              const { turns, addTurn } = useLogStore.getState();
+              if (turns.length === 0) {
+                 const prevTurns = await api.fetchConversations(50);
+                 if (prevTurns && prevTurns.length > 0) {
+                    prevTurns.forEach((t: any) => {
+                       addTurn({
+                          role: t.role,
+                          text: t.content,
+                          isFinal: true,
+                          timestamp: t.created_at ? new Date(t.created_at) : new Date()
+                       });
                      });
-                   });
-               }
+                 }
+              }
+            } catch (err: any) {
+              console.error("Failed to load history:", err);
+              setHistoryError(err.message);
             }
           } catch (e) {
             console.error("Error loading user data from Postgres:", e);
@@ -280,7 +287,8 @@ export default function EburonApp() {
           // Log the function call in the UI as a system turn
           useLogStore.getState().addTurn({
              role: 'system',
-             text: `**Tool Call**: ${fc.name}(${JSON.stringify(fc.args)})`,
+             text: `Executed ${fc.name}`,
+             toolName: fc.name,
              isFinal: true
           });
 
@@ -1132,11 +1140,11 @@ Output only natural spoken text. No stage directions, no brackets, no role label
              />
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-             <select className="form-input" style={{ width: 'auto', flex: 1, height: '40px' }} value={historyTypeFilter} onChange={(e) => setHistoryTypeFilter(e.target.value as any)}>
+             <select className="form-input" style={{ width: 'auto', flex: 1, height: '40px' }} value={historyRoleFilter} onChange={(e) => setHistoryRoleFilter(e.target.value as any)}>
                <option value="all">Every Role</option>
                <option value="user">User Only</option>
                <option value="agent">Agent Only</option>
-               <option value="system">Tools & System</option>
+               <option value="system">Tools Only</option>
              </select>
              <select className="form-input" style={{ width: 'auto', flex: 1, height: '40px' }} value={historyDateRange} onChange={(e) => setHistoryDateRange(e.target.value as any)}>
                <option value="all">All Sessions</option>
@@ -1144,22 +1152,22 @@ Output only natural spoken text. No stage directions, no brackets, no role label
                <option value="week">This Week</option>
              </select>
           </div>
-          {historyTypeFilter === 'system' && (
+          {historyRoleFilter === 'system' && (
             <div className="tool-chips" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
-              {['search', 'memory', 'meeting', 'artifact', 'command'].map(tool => (
+              {['search', 'save_memory', 'meeting', 'artifact', 'command'].map(tool => (
                 <button 
                   key={tool} 
                   className="pill-btn" 
                   style={{ 
                     fontSize: '10px', 
                     padding: '4px 8px', 
-                    backgroundColor: historySearch.includes(tool) ? 'var(--accent-active)' : 'transparent',
-                    color: historySearch.includes(tool) ? 'var(--bg-main)' : 'var(--text-muted)',
+                    backgroundColor: historyToolFilter === tool ? 'var(--accent-active)' : 'transparent',
+                    color: historyToolFilter === tool ? 'var(--bg-main)' : 'var(--text-muted)',
                     border: '1px solid var(--border-color)'
                   }}
-                  onClick={() => setHistorySearch(prev => prev === tool ? '' : tool)}
+                  onClick={() => setHistoryToolFilter(prev => prev === tool ? 'all' : (tool as any))}
                 >
-                  {tool}
+                  {tool.replace('save_', '')}
                 </button>
               ))}
             </div>
@@ -1167,7 +1175,12 @@ Output only natural spoken text. No stage directions, no brackets, no role label
         </div>
 
         <div className="overlay-content" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {turns.length === 0 ? (
+          {historyError ? (
+            <div style={{ padding: '20px', borderRadius: '12px', background: 'rgba(255,100,100,0.05)', border: '1px solid rgba(255,100,100,0.2)', color: '#ff8888', fontSize: '14px', textAlign: 'center' }}>
+              <i className="ph-bold ph-warning-circle" style={{ display: 'block', fontSize: '32px', marginBottom: '12px' }}></i>
+              {historyError}
+            </div>
+          ) : turns.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '40px' }}>No recent history.</p>
           ) : (
             turns
@@ -1177,8 +1190,14 @@ Output only natural spoken text. No stage directions, no brackets, no role label
                 
                 // Role filter
                 let matchesRole = true;
-                if (historyTypeFilter !== 'all') {
-                  matchesRole = t.role === historyTypeFilter;
+                if (historyRoleFilter !== 'all') {
+                  matchesRole = t.role === historyRoleFilter;
+                }
+
+                // Tool filter
+                let matchesTool = true;
+                if (historyRoleFilter === 'system' && historyToolFilter !== 'all') {
+                  matchesTool = t.toolName?.includes(historyToolFilter) || false;
                 }
 
                 // Date filter
@@ -1195,7 +1214,7 @@ Output only natural spoken text. No stage directions, no brackets, no role label
                   }
                 }
 
-                return matchesSearch && matchesRole && matchesDate;
+                return matchesSearch && matchesRole && matchesTool && matchesDate;
               })
               .map((turn, idx) => (
               <div 
@@ -1334,38 +1353,62 @@ Output only natural spoken text. No stage directions, no brackets, no role label
                 <button onClick={() => setPendingMemory(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><i className="ph ph-x"></i></button>
              </div>
              <div style={{ padding: '24px' }}>
-                <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '16px' }}>Beatrice wants to remember this:</p>
-                <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', fontSize: '14px', marginBottom: '24px', fontStyle: 'italic', borderLeft: '3px solid var(--accent-active)' }}>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>Beatrice wants to store a new memory of this insight:</p>
+                <div className="memory-preview-box" style={{ 
+                   padding: '16px', 
+                   borderRadius: '12px', 
+                   background: 'rgba(255,255,255,0.03)', 
+                   fontSize: '14px', 
+                   lineHeight: '1.6',
+                   marginBottom: '24px', 
+                   fontStyle: 'italic', 
+                   borderLeft: '4px solid var(--accent-active)',
+                   color: '#fff',
+                   position: 'relative'
+                }}>
+                   <i className="ph ph-quotes" style={{ position: 'absolute', right: '12px', top: '12px', opacity: 0.1, fontSize: '24px' }}></i>
                    "{pendingMemory.content}"
                 </div>
                 
-                <div className="form-group" style={{ marginBottom: '24px' }}>
-                   <label style={{ fontSize: '12px', marginBottom: '8px', display: 'block' }}>Category</label>
-                   <select 
-                     className="form-input" 
-                     defaultValue={pendingMemory.type || 'personal'}
-                     id="pending-memory-type"
-                   >
-                     <option value="personal">Personal</option>
-                     <option value="work">Work</option>
-                     <option value="project">Project</option>
-                   </select>
+                <div className="form-group" style={{ marginBottom: '28px' }}>
+                   <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px', display: 'block', color: 'var(--text-muted)' }}>Classify this Memory</label>
+                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      {['personal', 'work', 'project'].map(cat => (
+                         <button 
+                           key={cat}
+                           className={`cat-btn ${newMemoryType === cat ? 'active' : ''}`}
+                           style={{
+                              padding: '10px',
+                              borderRadius: '8px',
+                              border: `1px solid ${newMemoryType === cat ? 'var(--accent-active)' : 'var(--border-color)'}`,
+                              background: newMemoryType === cat ? 'rgba(203,251,69,0.1)' : 'transparent',
+                              color: newMemoryType === cat ? 'var(--accent-active)' : 'var(--text-muted)',
+                              fontSize: '12px',
+                              textTransform: 'capitalize',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                           }}
+                           onClick={() => setNewMemoryType(cat)}
+                         >
+                           {cat}
+                         </button>
+                      ))}
+                   </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '12px' }}>
                    <button 
-                     className="save-now-btn" 
-                     style={{ flex: 1, margin: 0, background: 'transparent', border: '1px solid var(--border-color)' }}
+                     className="btn-secondary" 
+                     style={{ flex: 1, padding: '12px', borderRadius: '12px', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}
                      onClick={() => setPendingMemory(null)}
-                   >Ignore</button>
+                   >Discard</button>
                    <button 
-                     className="save-now-btn" 
-                     style={{ flex: 1, margin: 0, backgroundColor: 'var(--accent-active)', color: 'var(--bg-main)' }}
+                     className="btn-primary" 
+                     style={{ flex: 1, padding: '12px', borderRadius: '12px', backgroundColor: 'var(--accent-active)', color: 'var(--bg-main)', fontWeight: 600 }}
                      onClick={() => {
-                        const typeVal = (document.getElementById('pending-memory-type') as HTMLSelectElement).value;
-                        handleConfirmPendingMemory(typeVal);
+                        handleConfirmPendingMemory(newMemoryType);
                      }}
-                   >Confirm</button>
+                   >Save Memory</button>
                 </div>
              </div>
            </div>
