@@ -1002,7 +1002,43 @@ Output only natural spoken text. No stage directions, no brackets, no role label
           <div className="overlay-title">Activity History</div>
           <button className="close-overlay-btn" onClick={() => setActiveOverlay(null)}><i className="ph-bold ph-x"></i></button>
         </div>
-        <div className="overlay-content"><p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '40px' }}>No recent history.</p></div>
+        <div className="overlay-content" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {turns.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '40px' }}>No recent history.</p>
+          ) : (
+            turns.filter(t => t.role !== 'system').map((turn, idx) => (
+              <div 
+                key={idx} 
+                className={`history-item ${turn.role}`} 
+                style={{ 
+                  padding: '16px', 
+                  borderRadius: '12px', 
+                  backgroundColor: turn.role === 'user' ? 'rgba(203,251,69,0.05)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${turn.role === 'user' ? 'rgba(203,251,69,0.1)' : 'rgba(255,255,255,0.05)'}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ 
+                    fontSize: '11px', 
+                    fontWeight: 700, 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '1px',
+                    color: turn.role === 'user' ? 'var(--accent-active)' : 'var(--text-muted)'
+                  }}>
+                    {turn.role === 'user' ? userCallName : personaName}
+                  </span>
+                  {turn.isFinal && <i className="ph ph-check-circle" style={{ fontSize: '12px', color: 'var(--accent-active)', opacity: 0.5 }}></i>}
+                </div>
+                <div style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text-main)' }}>
+                  <ReactMarkdown>{turn.text}</ReactMarkdown>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Tools Overlay */}
