@@ -315,3 +315,46 @@
     /* Footer Toggle */
     .auth-toggle { margin-top: 32px; font-size: 14px; color: var(--text-muted); }
     .auth-toggle span { color: var(--accent-primary); font-weight: 600; cursor: pointer; }
+
+    /* ---------------------------------------------------
+       9. Video Overlay
+    --------------------------------------------------- */
+    .video-overlay {
+      position: fixed;
+      z-index: 40;
+      border-radius: 16px;
+      border: 2px solid var(--accent-primary);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+      background: var(--bg-panel);
+    }
+
+    .video-overlay.webcam {
+      bottom: 160px;
+      right: 20px;
+      width: 160px;
+      object-fit: cover;
+      aspect-ratio: 16/9;
+    }
+
+    .video-overlay.screenshare {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90%;
+      max-width: 1000px;
+      max-height: 70vh;
+      object-fit: contain;
+    }
+
+    @media (max-width: 768px) {
+      .video-overlay.webcam {
+        width: 120px;
+        bottom: 120px;
+        right: 16px;
+      }
+      .video-overlay.screenshare {
+        width: 95%;
+        max-height: 60vh;
+      }
+    }

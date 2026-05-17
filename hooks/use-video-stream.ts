@@ -29,6 +29,12 @@ export function useVideoStream() {
         stream.getTracks().forEach(track => track.stop());
       }
       const newStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      
+      // Listen for when user stops screen share via browser UI
+      newStream.getVideoTracks()[0].addEventListener('ended', () => {
+        stopStream();
+      });
+
       setStream(newStream);
       setIsScreenShareActive(true);
       setIsWebcamActive(false);

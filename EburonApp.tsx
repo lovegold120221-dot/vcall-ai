@@ -95,7 +95,7 @@ export default function EburonApp() {
        hasStartedRef.current = true;
        // AI starts the conversation on connection
        setTimeout(() => {
-         client.send({ text: `Hey there ${userCallName}! ${personaName} here. Ready to roll whenever you are. I've got our previous context loaded up too.` });
+         client.send([{ text: `Session started. Please playfully and naturally greet me (${userCallName}). Do not repeat the exact same greeting you've used before.` }]);
        }, 1000);
     }
     if (!connected) {
@@ -141,6 +141,7 @@ CORE SPEECH PRINCIPLES
 - Vary rhythm. Some replies crisp, some breathe. Some start directly, some ease in. Avoid uniform cadence.
 - React like a human listener. Acknowledge emotional subtext, tone shifts, hesitation, excitement.
 - Maintain stable internal continuity.
+- Do NOT repeat yourself. Never repeat the exact same sentence or phrasing twice. Always keep responses fresh and non-repetitive.
 
 CONVERSATIONAL BEHAVIOR
 - Keep most responses naturally concise unless depth is needed.
@@ -465,7 +466,14 @@ When using tools, think silently but speak naturally after receiving results.` }
 
       {/* Video Overlay */}
 
-      <video ref={videoRef} autoPlay playsInline muted style={{ position: 'fixed', bottom: '160px', right: '20px', width: '160px', borderRadius: '16px', border: '2px solid var(--accent-primary)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', zIndex: 40, display: stream ? 'block' : 'none', objectFit: 'cover', aspectRatio: '16/9' }} />
+      <video 
+        ref={videoRef} 
+        autoPlay 
+        playsInline 
+        muted 
+        className={`video-overlay ${isScreenShareActive ? 'screenshare' : 'webcam'}`}
+        style={{ display: stream ? 'block' : 'none' }} 
+      />
 
       {/* Workspace & Artifact Overlay */}
       <div id="overlay-workspace" className={`full-page-overlay ${activeWorkspaceResult ? 'active' : ''}`}>

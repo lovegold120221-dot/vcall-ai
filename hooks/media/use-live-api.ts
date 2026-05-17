@@ -54,10 +54,12 @@ export function useLiveApi({
   const [connected, setConnected] = useState(false);
   const [config, setConfig] = useState<LiveConnectConfig>({});
 
-  // register audio for streaming server -> speakers
   useEffect(() => {
+    let isCancelled = false;
     if (!audioStreamerRef.current) {
       audioContext({ id: 'audio-out' }).then((audioCtx: AudioContext) => {
+        if (isCancelled) return;
+        if (audioStreamerRef.current) return;
         audioStreamerRef.current = new AudioStreamer(audioCtx);
         audioStreamerRef.current
           .addWorklet<any>('vumeter-out', VolMeterWorket, (ev: any) => {
@@ -71,7 +73,10 @@ export function useLiveApi({
           });
       });
     }
-  }, [audioStreamerRef]);
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const onOpen = () => {
