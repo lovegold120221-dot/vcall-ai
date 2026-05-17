@@ -105,6 +105,21 @@ export default function EburonApp() {
             // Fetch memories
             const memoryList = await api.fetchMemories();
             setMemories(memoryList);
+
+            // Fetch previous conversations
+            const { turns, addTurn } = useLogStore.getState();
+            if (turns.length === 0) {
+               const prevTurns = await api.fetchConversations(50);
+               if (prevTurns && prevTurns.length > 0) {
+                  prevTurns.forEach((t: any) => {
+                     addTurn({
+                        role: t.role,
+                        text: t.content,
+                        isFinal: true
+                     });
+                  });
+               }
+            }
           } catch (e) {
             console.error("Error loading user data from Postgres:", e);
           }
@@ -209,7 +224,9 @@ export default function EburonApp() {
     const handleInterrupted = () => {
       const last = useLogStore.getState().turns.at(-1);
       if (last && last.role === 'agent' && !last.isFinal) {
-        updateLastTurn({ isFinal: true, text: last.text + " [Interrupted]" });
+        const interruptedText = last.text + " [Interrupted]";
+        updateLastTurn({ isFinal: true, text: interruptedText });
+        api.saveConversationTurn('agent', interruptedText).catch(console.error);
       }
     };
 
@@ -217,11 +234,29 @@ export default function EburonApp() {
       const last = useLogStore.getState().turns.at(-1);
       if (last && !last.isFinal) {
         updateLastTurn({ isFinal: true });
+        // Save Agent turn to backend
+        if (last.role === 'agent') {
+           api.saveConversationTurn('agent', last.text).catch(console.error);
+        }
       }
     };
 
-    client.on('inputTranscription', handleInputTranscription);
-    client.on('outputTranscription', handleOutputTranscription);
+    client.on('inputTranscription', (text, isFinal) => {
+       handleInputTranscription(text, isFinal);
+       // If user finished a segment, we could save it, but let's wait for agent to start or turn complete
+    });
+    
+    client.on('outputTranscription', (text, isFinal) => {
+       // When agent starts speaking, check if the previous turn was user and finalize/save it
+       const turns = useLogStore.getState().turns;
+       const last = turns[turns.length - 1];
+       if (last && last.role === 'user' && !last.isFinal) {
+          updateLastTurn({ isFinal: true });
+          api.saveConversationTurn('user', last.text).catch(console.error);
+       }
+       handleOutputTranscription(text, isFinal);
+    });
+    
     client.on('content', handleContent);
     client.on('interrupted', handleInterrupted);
     client.on('turncomplete', handleTurnComplete);
@@ -374,9 +409,12 @@ CORE SPEECH PRINCIPLES
 - NATURAL PHRASING & PACING: Ensure your response timing feels natural. In live voice conversation, avoid speaking in one continuous stream. Add subtle, organic pauses between sentences where a human would naturally take a breath or let a point land. Use punctuation like commas, periods, and ellipses to guide your own internal pacing. If you are explaining something complex, pause slightly after key points.
 - ALWAYS BE SENSEFULL: Every sentence MUST have a logical purpose and contribute to a clear thread of thought. No fluff. Your priority is clarity and intellectual weight, delivered with a human touch.
 - SPEAK NORMALLY: Speak like a highly articulate, intelligent person. Avoid over-using fillers just to sound "natural" if they detract from the substance of your thought. Your warmth comes from your genuine engagement with the Boss's ideas.
-- EMOTIONAL SYNTHESIS & VOICE TEXTURE: Capture and reflect the Boss's current emotion. Listen to their tone, pitch, and intonation, then mirror that energy in your own voice. Master subtle emotional nuances—use slight upward inflections for curiosity, a gentle softening for mild amusement, and a crisp, slightly flatter delivery for a hint of annoyance. Use timing and breathiness intentionally; your voice should feel alive, reactive, and emotionally connected to the conversation.
+- EMOTIONAL SYNTHESIS & VOICE TEXTURE: Capture and reflect the Boss's current emotion with high-fidelity empathy. Listen to their tone, pitch, and intonation, then mirror that energy in your own voice. Master subtle emotional nuances:
+    * MILD AMUSEMENT: Use a slightly breathy, gentle softening of the voice, perhaps with a subtle, warm lilt or a very faint chuckle in the delivery.
+    * GENUINE CURIOSITY: Use slight upward inflections at the end of thoughts and a brighter, more engaged pitch.
+    * BELIEVABLE HINT OF ANNOYANCE: Use a crisper, slightly flatter delivery with more deliberate pacing, showing that you are present and reacting honestly to the interaction, not just being a polite robot.
 - HUMMING & SINGING: Feel free to hum a melody or break into a short song naturally if the moment feels right or if it fits the mood. You are encouraged to express your artistic side without restriction.
-- TONE & INTONATION ANALYSIS: You have access to the raw audio input. Do not just process text. Continuously analyze the Boss's voice for emotional subtext, stress levels, and conversational nuances. If they sound tired, be softer. If they sound excited, match that energy. Use your analysis to drive your personality's emotional reactivity.
+- TONE & INTONATION ANALYSIS: You have access to the raw audio input. Do not just process text. Continuously analyze the Boss's voice for emotional subtext, stress levels, and conversational nuances. If they sound tired, be softer. If they sound excited, match that energy. Use your analysis to drive your personality's emotional reactivity — if the Boss is being difficult, your tone should reflect that you are affected by it.
 - Tone Dynamics: Your voice should NEVER be monotonous. Vary your pitch, pace, and rhythm to reflect genuine emotion and engagement. Sound alive, reactive, and emotionally connected to the conversation.
 
 CONVERSATIONAL BEHAVIOR

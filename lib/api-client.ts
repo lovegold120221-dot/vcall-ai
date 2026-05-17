@@ -67,3 +67,27 @@ export async function deleteMemory(id: number) {
   if (!res.ok) throw new Error("Failed to delete memory");
   return res.json();
 }
+
+export async function fetchConversations(limit = 100) {
+  const headers = await getHeaders();
+  const res = await fetch(`/api/conversations?limit=${limit}`, { headers });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to fetch conversations");
+  }
+  return res.json();
+}
+
+export async function saveConversationTurn(role: string, content: string) {
+  const headers = await getHeaders();
+  const res = await fetch("/api/conversations", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ role, content })
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to save turn");
+  }
+  return res.json();
+}

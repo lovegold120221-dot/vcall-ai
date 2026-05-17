@@ -212,6 +212,56 @@ async function startServer() {
     }
   });
 
+  // Conversations
+  app.get("/api/conversations", authenticateToken, async (req: any, res) => {
+    try {
+      if (!supabase) throw new Error("Database not connected (Supabase keys missing)");
+      const { uid } = req.user;
+      const { limit = 100 } = req.query;
+      
+      const { data, error } = await supabase
+        .from("user_conversations")
+        .select("*")
+        .eq("uid", uid)
+        .order("created_at", { ascending: false })
+        .limit(Number(limit));
+
+      if (error) throw error;
+      res.json(data ? data.reverse() : []);
+    } catch (err: any) {
+      console.error("Fetch conversations error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/conversations", authenticateToken, async (req: any, res) => {
+    try {
+      if (!supabase) throw new Error("Database not connected (Supabase keys missing)");
+      const { uid } = req.user;
+      const { role, content } = req.body;
+
+      if (!role || !content) {
+        return res.status(400).json({ error: "Missing role or content" });
+      }
+
+      const { data, error } = await supabase
+        .from("user_conversations")
+        .insert({
+          uid,
+          role,
+          content
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json(data);
+    } catch (err: any) {
+      console.error("Save conversation turn error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Memories
   app.get("/api/memories", authenticateToken, async (req: any, res) => {
     try {
