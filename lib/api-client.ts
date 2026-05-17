@@ -51,7 +51,10 @@ export async function saveMemory(content: string, type: string) {
     headers,
     body: JSON.stringify({ content, type })
   });
-  if (!res.ok) throw new Error("Failed to save memory");
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to save memory");
+  }
   return res.json();
 }
 

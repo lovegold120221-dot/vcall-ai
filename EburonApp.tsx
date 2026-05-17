@@ -223,18 +223,19 @@ export default function EburonApp() {
           if (fc.name === 'save_memory') {
             const { content, type } = fc.args;
             try {
-              await api.saveMemory(content, type);
+              const resData = await api.saveMemory(content, type);
               // Refresh memories in state
               const updated = await api.fetchMemories();
               setMemories(updated);
               return {
                 id: fc.id,
-                response: { output: `Success: Memory saved. Content: "${content}"` }
+                response: { success: true, memory: resData }
               };
-            } catch (err) {
+            } catch (err: any) {
+              console.error("Save memory tool error:", err);
               return {
                 id: fc.id,
-                response: { error: "Failed to save memory." }
+                response: { success: false, error: err.message || "Failed to save memory." }
               };
             }
           }

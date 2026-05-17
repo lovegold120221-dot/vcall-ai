@@ -225,8 +225,14 @@ async function startServer() {
   app.post("/api/memories", authenticateToken, async (req: any, res) => {
     try {
       const { uid } = req.user;
-      const { content, type } = req.body;
+      const { content, type = 'personal' } = req.body;
+
+      if (!content) {
+        return res.status(400).json({ error: "Missing 'content' in request body" });
+      }
       
+      console.log(`Saving memory for ${uid}:`, { content, type });
+
       let result = await supabase
         .from("user_memories")
         .insert([{ uid, content, type }])
@@ -235,19 +241,21 @@ async function startServer() {
 
       // Fallback if 'uid' column missing
       if (result.error && result.error.message.includes('column user_memories.uid does not exist')) {
-         console.error("Critical: user_memories is missing 'uid' column.");
+         console.error("Critical: user_memories table is missing 'uid' column. Please run SCHEMA.sql.");
+         return res.status(500).json({ error: "Database schema mismatch: missing 'uid' column in user_memories table." });
       }
 
       if (result.error) {
+          console.error("Memories POST Supabase error:", result.error);
           if (result.error.message.includes('invalid input syntax for type uuid')) {
-              throw new Error(`Type mismatch in user_memories: Cannot insert into a UUID column with Firebase UID.`);
+              return res.status(400).json({ error: `Type mismatch in user_memories: Cannot insert into a UUID column with Firebase UID TEXT. Please run SCHEMA.sql.` });
           }
-          throw result.error;
+          return res.status(500).json({ error: result.error.message });
       }
       res.json(result.data);
     } catch (err: any) {
-      console.error("Memories POST error:", err);
-      const errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      console.error("Memories POST catch error:", err);
+      const errorMessage = err?.message || String(err);
       res.status(500).json({ error: "Internal server error: " + errorMessage });
     }
   });
