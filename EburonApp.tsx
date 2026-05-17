@@ -19,6 +19,7 @@ export default function EburonApp() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [authError, setAuthError] = useState('');
+  const [hasConsented, setHasConsented] = useState(false);
   
   const { client, connect, disconnect, connected, volume, setConfig } = useLiveAPIContext();
   const turns = useLogStore((state) => state.turns);
@@ -297,6 +298,10 @@ Output only natural spoken text. No stage directions, no brackets, no role label
 
   const handleGoogleLogin = async () => {
      setAuthError('');
+     if (!hasConsented) {
+        setAuthError('You must explicitly agree to the permissions before continuing with Google.');
+        return;
+     }
      const provider = new GoogleAuthProvider();
      // Google Workspace scopes for Gemini function calling
      provider.addScope('https://www.googleapis.com/auth/calendar');
@@ -909,6 +914,10 @@ Output only natural spoken text. No stage directions, no brackets, no role label
               <li><strong>Live Web Search:</strong> Real-time Google Search access.</li>
               <li><strong>Function Tools:</strong> Automation capabilities across your synced apps.</li>
             </ul>
+            <div style={{ marginTop: '12px', display: 'flex', gap: '8px', alignItems: 'flex-start', textAlign: 'left', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <input type="checkbox" id="consent" checked={hasConsented} onChange={(e) => setHasConsented(e.target.checked)} style={{ marginTop: '4px', cursor: 'pointer' }} />
+              <label htmlFor="consent" style={{ color: '#fff', cursor: 'pointer', fontSize: '13px', lineHeight: '1.4' }}>I explicitly grant permission to allow Eburon to access the Google Workspace APIs listed above, perform web searches, and utilize function tools on my behalf.</label>
+            </div>
           </div>
 
           <div className="auth-toggle">
