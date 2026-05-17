@@ -76,6 +76,14 @@ export default function EburonApp() {
   const [isAddingMemory, setIsAddingMemory] = useState<boolean>(false);
   const [newMemoryValue, setNewMemoryValue] = useState<string>('');
   const [newMemoryType, setNewMemoryType] = useState<string>('personal');
+  const [pendingMemory, setPendingMemory] = useState<{ content: string; type: string; id?: string } | null>(null);
+  const [memorySuccessMsg, setMemorySuccessMsg] = useState<string | null>(null);
+
+  // History Filtering State
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<'all' | 'user' | 'agent' | 'system'>('all');
+  const [historyDateRange, setHistoryDateRange] = useState<'all' | 'today' | 'week'>('all');
+
   const chatAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -115,9 +123,10 @@ export default function EburonApp() {
                      addTurn({
                         role: t.role,
                         text: t.content,
-                        isFinal: true
+                        isFinal: true,
+                        timestamp: t.created_at ? new Date(t.created_at) : new Date()
                      });
-                  });
+                   });
                }
             }
           } catch (e) {
@@ -286,21 +295,12 @@ export default function EburonApp() {
               };
             }
 
-            try {
-              const resData = await api.saveMemory(content, type);
-              const updated = await api.fetchMemories();
-              setMemories(updated);
-              return {
-                id: fc.id,
-                response: { success: true, memory: resData }
-              };
-            } catch (err: any) {
-              console.error("Save memory tool error:", err);
-              return {
-                id: fc.id,
-                response: { success: false, error: err.message || "Failed to save memory." }
-              };
-            }
+            // Instead of saving immediately, we trigger a confirmation modal
+            setPendingMemory({ content, type, id: fc.id });
+            return {
+              id: fc.id,
+              response: { success: true, status: "Awaiting user confirmation in UI." }
+            };
           }
 
           const genericResponses: Record<string, any> = {
@@ -601,8 +601,26 @@ Output only natural spoken text. No stage directions, no brackets, no role label
       setIsAddingMemory(false);
       setNewMemoryValue('');
       setNewMemoryType('personal');
+      
+      setMemorySuccessMsg("Memory added successfully!");
+      setTimeout(() => setMemorySuccessMsg(null), 3000);
     } catch(e) {
       console.error("Error adding memory:", e);
+    }
+  };
+
+  const handleConfirmPendingMemory = async (type: string) => {
+    if (!pendingMemory) return;
+    try {
+      await api.saveMemory(pendingMemory.content, type);
+      const memoryList = await api.fetchMemories();
+      setMemories(memoryList);
+      setPendingMemory(null);
+      
+      setMemorySuccessMsg(`Memory saved as ${type}!`);
+      setTimeout(() => setMemorySuccessMsg(null), 3000);
+    } catch(e) {
+      console.error("Error saving pending memory:", e);
     }
   };
 
@@ -624,6 +642,27 @@ Output only natural spoken text. No stage directions, no brackets, no role label
           <img src="https://eburon.ai/icon-eburon.svg" alt="Eburon Logo" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
           <span className="ai-name">Eburon AI</span>
         </div>
+
+        {memorySuccessMsg && (
+          <div className="memory-toast" style={{
+            position: 'absolute',
+            left: '50%',
+            top: '70px',
+            transform: 'translateX(-50%)',
+            backgroundColor: 'var(--accent-active)',
+            color: 'var(--bg-main)',
+            padding: '8px 16px',
+            borderRadius: '20px',
+            fontSize: '12px',
+            fontWeight: 700,
+            zIndex: 1000,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+            animation: 'fadeInOut 3s forwards'
+          }}>
+            <i className="ph ph-check-circle" style={{ marginRight: '6px' }}></i>
+            {memorySuccessMsg}
+          </div>
+        )}
 
         {connected && (
           <div className="speaker-visualizer">
@@ -1079,18 +1118,93 @@ Output only natural spoken text. No stage directions, no brackets, no role label
           <div className="overlay-title">Activity History</div>
           <button className="close-overlay-btn" onClick={() => setActiveOverlay(null)}><i className="ph-bold ph-x"></i></button>
         </div>
+
+        <div className="history-filters" style={{ padding: '16px 24px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="search-box" style={{ position: 'relative' }}>
+             <i className="ph ph-magnifying-glass" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}></i>
+             <input 
+               type="text" 
+               className="form-input" 
+               placeholder="Search conversation..." 
+               style={{ paddingLeft: '40px' }}
+               value={historySearch}
+               onChange={(e) => setHistorySearch(e.target.value)}
+             />
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+             <select className="form-input" style={{ width: 'auto', flex: 1, height: '40px' }} value={historyTypeFilter} onChange={(e) => setHistoryTypeFilter(e.target.value as any)}>
+               <option value="all">Every Role</option>
+               <option value="user">User Only</option>
+               <option value="agent">Agent Only</option>
+               <option value="system">Tools & System</option>
+             </select>
+             <select className="form-input" style={{ width: 'auto', flex: 1, height: '40px' }} value={historyDateRange} onChange={(e) => setHistoryDateRange(e.target.value as any)}>
+               <option value="all">All Sessions</option>
+               <option value="today">Today</option>
+               <option value="week">This Week</option>
+             </select>
+          </div>
+          {historyTypeFilter === 'system' && (
+            <div className="tool-chips" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+              {['search', 'memory', 'meeting', 'artifact', 'command'].map(tool => (
+                <button 
+                  key={tool} 
+                  className="pill-btn" 
+                  style={{ 
+                    fontSize: '10px', 
+                    padding: '4px 8px', 
+                    backgroundColor: historySearch.includes(tool) ? 'var(--accent-active)' : 'transparent',
+                    color: historySearch.includes(tool) ? 'var(--bg-main)' : 'var(--text-muted)',
+                    border: '1px solid var(--border-color)'
+                  }}
+                  onClick={() => setHistorySearch(prev => prev === tool ? '' : tool)}
+                >
+                  {tool}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="overlay-content" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {turns.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '40px' }}>No recent history.</p>
           ) : (
-            turns.filter(t => t.role !== 'system').map((turn, idx) => (
+            turns
+              .filter(t => {
+                // Search filter
+                const matchesSearch = t.text.toLowerCase().includes(historySearch.toLowerCase());
+                
+                // Role filter
+                let matchesRole = true;
+                if (historyTypeFilter !== 'all') {
+                  matchesRole = t.role === historyTypeFilter;
+                }
+
+                // Date filter
+                let matchesDate = true;
+                if (historyDateRange !== 'all') {
+                  const date = t.timestamp || new Date();
+                  const now = new Date();
+                  if (historyDateRange === 'today') {
+                    matchesDate = date.toDateString() === now.toDateString();
+                  } else if (historyDateRange === 'week') {
+                    const weekAgo = new Date();
+                    weekAgo.setDate(now.getDate() - 7);
+                    matchesDate = date >= weekAgo;
+                  }
+                }
+
+                return matchesSearch && matchesRole && matchesDate;
+              })
+              .map((turn, idx) => (
               <div 
                 key={idx} 
                 className={`history-item ${turn.role}`} 
                 style={{ 
                   padding: '16px', 
                   borderRadius: '12px', 
-                  backgroundColor: turn.role === 'user' ? 'rgba(203,251,69,0.05)' : 'rgba(255,255,255,0.03)',
+                  backgroundColor: turn.role === 'user' ? 'rgba(203,251,69,0.05)' : turn.role === 'system' ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.03)',
                   border: `1px solid ${turn.role === 'user' ? 'rgba(203,251,69,0.1)' : 'rgba(255,255,255,0.05)'}`,
                   display: 'flex',
                   flexDirection: 'column',
@@ -1105,7 +1219,7 @@ Output only natural spoken text. No stage directions, no brackets, no role label
                     letterSpacing: '1px',
                     color: turn.role === 'user' ? 'var(--accent-active)' : 'var(--text-muted)'
                   }}>
-                    {turn.role === 'user' ? userCallName : personaName}
+                    {turn.role === 'user' ? userCallName : turn.role === 'system' ? 'System' : personaName}
                   </span>
                   {turn.isFinal && <i className="ph ph-check-circle" style={{ fontSize: '12px', color: 'var(--accent-active)', opacity: 0.5 }}></i>}
                 </div>
@@ -1192,6 +1306,71 @@ Output only natural spoken text. No stage directions, no brackets, no role label
 
         </div>
       </div>
+
+      {/* Memory Confirmation Modal */}
+      {pendingMemory && (
+        <div className="confirm-modal-overlay" style={{
+           position: 'fixed',
+           top:0, left:0, right:0, bottom:0,
+           backgroundColor: 'rgba(0,0,0,0.85)',
+           zIndex: 2000,
+           display: 'flex',
+           alignItems: 'center',
+           justifyContent: 'center',
+           padding: '20px'
+        }}>
+           <div className="confirm-modal" style={{
+             backgroundColor: 'var(--bg-card)',
+             width: '100%',
+             maxWidth: '400px',
+             borderRadius: '16px',
+             border: '1px solid var(--border-color)',
+             overflow: 'hidden',
+             boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+             animation: 'slideUp 0.3s ease-out'
+           }}>
+             <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 600 }}>Save to Memory?</h3>
+                <button onClick={() => setPendingMemory(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><i className="ph ph-x"></i></button>
+             </div>
+             <div style={{ padding: '24px' }}>
+                <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '16px' }}>Beatrice wants to remember this:</p>
+                <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', fontSize: '14px', marginBottom: '24px', fontStyle: 'italic', borderLeft: '3px solid var(--accent-active)' }}>
+                   "{pendingMemory.content}"
+                </div>
+                
+                <div className="form-group" style={{ marginBottom: '24px' }}>
+                   <label style={{ fontSize: '12px', marginBottom: '8px', display: 'block' }}>Category</label>
+                   <select 
+                     className="form-input" 
+                     defaultValue={pendingMemory.type || 'personal'}
+                     id="pending-memory-type"
+                   >
+                     <option value="personal">Personal</option>
+                     <option value="work">Work</option>
+                     <option value="project">Project</option>
+                   </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px' }}>
+                   <button 
+                     className="save-now-btn" 
+                     style={{ flex: 1, margin: 0, background: 'transparent', border: '1px solid var(--border-color)' }}
+                     onClick={() => setPendingMemory(null)}
+                   >Ignore</button>
+                   <button 
+                     className="save-now-btn" 
+                     style={{ flex: 1, margin: 0, backgroundColor: 'var(--accent-active)', color: 'var(--bg-main)' }}
+                     onClick={() => {
+                        const typeVal = (document.getElementById('pending-memory-type') as HTMLSelectElement).value;
+                        handleConfirmPendingMemory(typeVal);
+                     }}
+                   >Confirm</button>
+                </div>
+             </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 }

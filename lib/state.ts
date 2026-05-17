@@ -690,14 +690,14 @@ export interface ConversationTurn {
 
 export const useLogStore = create<{
   turns: ConversationTurn[];
-  addTurn: (turn: Omit<ConversationTurn, 'timestamp'>) => void;
+  addTurn: (turn: Omit<ConversationTurn, 'timestamp'> & { timestamp?: Date }) => void;
   updateLastTurn: (update: Partial<ConversationTurn>) => void;
   clearTurns: () => void;
 }>((set, get) => ({
   turns: [],
-  addTurn: (turn: Omit<ConversationTurn, 'timestamp'>) =>
+  addTurn: (turn: Omit<ConversationTurn, 'timestamp'> & { timestamp?: Date }) =>
     set(state => ({
-      turns: [...state.turns, { ...turn, timestamp: new Date() }],
+      turns: [...state.turns, { ...turn, timestamp: turn.timestamp || new Date() }],
     })),
   updateLastTurn: (update: Partial<Omit<ConversationTurn, 'timestamp'>>) => {
     set(state => {
