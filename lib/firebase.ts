@@ -5,7 +5,7 @@ import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId === '(default)' ? undefined : (firebaseConfig as any).firestoreDatabaseId); /* CRITICAL: The app will break without this line */
 
 export enum OperationType {
   CREATE = 'create',
@@ -57,9 +57,16 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 export async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
+    console.log("Firebase connected successfully");
   } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your Firebase configuration: client is offline.");
+    } else if (error instanceof Error && error.message.includes('Missing or insufficient permissions')) {
+      // This means we reached the server successfully but were blocked by rules.
+      // This is a successful network test!
+      console.log("Firebase connected successfully (received expected explicit permission denial from server).");
+    } else {
+      console.warn("Firebase test connection warning:", error);
     }
   }
 }

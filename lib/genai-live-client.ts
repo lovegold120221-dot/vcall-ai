@@ -155,7 +155,13 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
       return;
     }
     chunks.forEach(chunk => {
-      this.session!.sendRealtimeInput({ media: chunk });
+      if (chunk.mimeType.startsWith('image/') || chunk.mimeType.startsWith('video/')) {
+        this.session!.sendRealtimeInput({ video: chunk });
+      } else if (chunk.mimeType.startsWith('audio/')) {
+        this.session!.sendRealtimeInput({ audio: chunk });
+      } else {
+        this.session!.sendRealtimeInput({ media: chunk }); // Fallback
+      }
     });
 
     let hasAudio = false;
