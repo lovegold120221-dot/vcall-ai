@@ -447,22 +447,8 @@ export function useLiveApi({
     };
 
     const handleContent = (serverContent: LiveServerContent) => {
-      const text =
-        serverContent.modelTurn?.parts
-          ?.map((p: any) => p.text)
-          .filter(Boolean)
-          .join(' ') ?? '';
-
-      if (!text) return;
-
-      const { addTurn, updateLastTurn, turns } = useLogStore.getState();
-      const last = turns.at(-1);
-
-      if (last?.role === 'agent' && !last.isFinal) {
-        updateLastTurn({ text: last.text + text });
-      } else {
-        addTurn({ role: 'agent', text, isFinal: false });
-      }
+      // Intentionally ignoring text content to ensure all AI output transcriptions 
+      // are derived purely from real-time audio (outputTranscription) as requested.
     };
 
     const handleTurnComplete = () => {
