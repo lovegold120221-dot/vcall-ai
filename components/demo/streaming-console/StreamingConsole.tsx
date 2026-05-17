@@ -53,7 +53,7 @@ const renderContent = (text: string) => {
 
 export default function StreamingConsole() {
   const { client, setConfig } = useLiveAPIContext();
-  const { systemPrompt, voice } = useSettings();
+  const { systemPrompt, voice, model } = useSettings();
   const { tools } = useTools();
   const turns = useLogStore(state => state.turns);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -88,8 +88,8 @@ export default function StreamingConsole() {
           },
         },
       },
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
+      inputAudioTranscription: { model },
+      outputAudioTranscription: { model },
       systemInstruction: {
         parts: [
           {
