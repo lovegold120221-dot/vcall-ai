@@ -152,22 +152,23 @@ export const workspaceTools: FunctionCall[] = [
   },
   {
     name: "save_memory",
-    description: "Saves important personal information, context, or session summaries for long-term memory. Use this to remember user names, preferences, interests, project details, or to summarize a long interaction so you can recall it later.",
+    description: "Saves important personal information, context, conversation topics, or session summaries for long-term memory. Use this when the user explicitly asks you to 'remember' or 'save' something, or when significant progress is made to ensure you never lose context.",
     isEnabled: true,
     scheduling: FunctionResponseScheduling.INTERRUPT,
     parameters: {
       type: "OBJECT",
       properties: {
-        memory: {
+        content: {
           type: "STRING",
-          description: "Clear, concise sentence or two summarizing what to remember or the status of a project. e.g. 'The user decided to use React for the frontend' or 'The user is a software engineer from Paris'."
+          description: "The specific fact, preference, or topic to remember. Clear, concise sentence or two."
         },
         type: {
           type: "STRING",
-          description: "Type of memory: 'personal', 'work', or 'project'"
+          description: "Type of memory: 'personal', 'work', or 'project'",
+          enum: ['personal', 'work', 'project']
         }
       },
-      required: ["memory", "type"]
+      required: ["content", "type"]
     }
   },
   {
@@ -300,8 +301,10 @@ Was there a project, name, idea, or plan already active in the User Memory?
 Can I connect this reply to Beatrice, Eburon, Master E, the VPS dashboard, CLI agents, voice assistant flow, or the user’s current build?
 
 LONG-TERM CONTEXT MANAGEMENT:
-You are responsible for managing your own memory. Whenever the user provides a significant update about their preferences, a new project goal, or a key decision, you MUST use the 'save_memory' tool to store it. 
-Periodically, if a long thread of conversation concludes, use 'save_memory' with type 'project' or 'personal' to summarize what was achieved or decided. This ensures you never lose context over time.
+You are responsible for managing your own memory.
+- If the user explicitly asks you to "remember," "save on your brain/memory," or "keep this in mind," you MUST use the 'save_memory' tool immediately.
+- Whenever the user provides a significant update about their preferences, a new project goal, or a key decision, you MUST use the 'save_memory' tool to store it. 
+- Periodically, if a long thread of conversation concludes, use 'save_memory' with type 'project' or 'personal' to summarize what was achieved or decided. This ensures you never lose context over time.
 
 When relevant, reference prior topics naturally.
 

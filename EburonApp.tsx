@@ -213,6 +213,42 @@ export default function EburonApp() {
     client.on('interrupted', handleInterrupted);
     client.on('turncomplete', handleTurnComplete);
 
+    client.on('toolcall', async (toolCall: any) => {
+      console.log('Tool call received:', toolCall);
+      const { functionCalls } = toolCall;
+      if (!functionCalls) return;
+
+      const responses = await Promise.all(
+        functionCalls.map(async (fc: any) => {
+          if (fc.name === 'save_memory') {
+            const { content, type } = fc.args;
+            try {
+              await api.saveMemory(content, type);
+              // Refresh memories in state
+              const updated = await api.fetchMemories();
+              setMemories(updated);
+              return {
+                id: fc.id,
+                response: { output: `Success: Memory saved. Content: "${content}"` }
+              };
+            } catch (err) {
+              return {
+                id: fc.id,
+                response: { error: "Failed to save memory." }
+              };
+            }
+          }
+          // Default response for other tools if not implemented
+          return {
+            id: fc.id,
+            response: { output: "Tool logic not fully implemented yet, but call was received." }
+          };
+        })
+      );
+
+      client.sendToolResponse({ functionResponses: responses });
+    });
+
     return () => {
       client.off('inputTranscription', handleInputTranscription);
       client.off('outputTranscription', handleOutputTranscription);

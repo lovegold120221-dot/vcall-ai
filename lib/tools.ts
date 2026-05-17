@@ -70,4 +70,25 @@ export const AVAILABLE_TOOLS: FunctionCall[] = [
     isEnabled: true,
     scheduling: FunctionResponseScheduling.INTERRUPT,
   },
+  {
+    name: 'save_memory',
+    description: 'Saves a specific piece of information or conversation topic into the user\'s long-term memory for future recall.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        content: {
+          type: 'STRING',
+          description: 'The specific fact, preference, or topic to remember.',
+        },
+        type: {
+          type: 'STRING',
+          description: 'The category of memory (e.g., personal, work, project).',
+          enum: ['personal', 'work', 'project'],
+        },
+      },
+      required: ['content', 'type'],
+    },
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+  },
 ];
