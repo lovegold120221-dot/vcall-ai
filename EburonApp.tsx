@@ -216,7 +216,10 @@ Before answering, silently infer: what the person actually needs right now, thei
 OUTPUT FORMAT
 Output only natural spoken text. No stage directions, no brackets, no role labels.` }]
       },
-      tools: enabledTools
+      tools: [
+        ...enabledTools,
+        { googleSearch: {} }
+      ]
     } as any);
   }, [setConfig, tools, voice, language, personaName, userCallName, systemPrompt, memories]);
 
@@ -900,8 +903,12 @@ Output only natural spoken text. No stage directions, no brackets, no role label
           </button>
 
           <div className="permissions-note">
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ph-fill ph-shield-check" style={{color: 'var(--accent-active)'}}></i> Google Workspace Sync</span>
-            <span>Requires Read/Write permissions for Gmail, Drive, Calendar, and Tasks to enable full automation.</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500, color: '#aaa' }}><i className="ph-fill ph-shield-check" style={{color: 'var(--accent-active)'}}></i> Authorization & Capabilities</span>
+            <ul style={{ margin: 0, paddingLeft: '16px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <li><strong>Google Workspace:</strong> Access to Gmail, Drive, Calendar, Contacts, and Tasks.</li>
+              <li><strong>Live Web Search:</strong> Real-time Google Search access.</li>
+              <li><strong>Function Tools:</strong> Automation capabilities across your synced apps.</li>
+            </ul>
           </div>
 
           <div className="auth-toggle">
