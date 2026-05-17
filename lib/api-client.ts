@@ -13,7 +13,10 @@ async function getHeaders() {
 export async function fetchSettings() {
   const headers = await getHeaders();
   const res = await fetch("/api/settings", { headers });
-  if (!res.ok) throw new Error("Failed to fetch settings");
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to fetch settings");
+  }
   return res.json();
 }
 
@@ -24,14 +27,20 @@ export async function updateSettings(settings: any) {
     headers,
     body: JSON.stringify(settings)
   });
-  if (!res.ok) throw new Error("Failed to update settings");
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to update settings");
+  }
   return res.json();
 }
 
 export async function fetchMemories() {
   const headers = await getHeaders();
   const res = await fetch("/api/memories", { headers });
-  if (!res.ok) throw new Error("Failed to fetch memories");
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || "Failed to fetch memories");
+  }
   return res.json();
 }
 

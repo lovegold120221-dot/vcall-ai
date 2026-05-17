@@ -17,10 +17,13 @@ if (!admin.apps.length) {
 }
 
 // Initialize Supabase Client
-// We use the Service Role Key on the server to bypass RLS and perform administrative actions.
-// If not provided, we fallback to the anon key (which might have RLS constraints).
-const supabaseUrl = process.env.SUPABASE_URL || "";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "";
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("CRITICAL: Supabase credentials missing. Please set SUPABASE_URL and SUPABASE_ANON_KEY in environment variables.");
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function startServer() {
@@ -50,6 +53,14 @@ async function startServer() {
   };
 
   // API Routes
+  app.get("/api/supabase-check", async (req, res) => {
+    try {
+      const { data, error } = await supabase.from("user_settings").select("count").limit(1);
+      res.json({ connected: !error, error: error ? error : null });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
   
   // Settings
   app.get("/api/settings", authenticateToken, async (req: any, res) => {
@@ -69,15 +80,21 @@ async function startServer() {
           .select()
           .single();
         
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error("Settings INSERT error:", JSON.stringify(insertError, null, 2));
+          throw insertError;
+        }
         return res.json(newData);
       }
       
-      if (error) throw error;
+      if (error) {
+        console.error("Settings GET error details:", JSON.stringify(error, null, 2));
+        throw error;
+      }
       res.json(data);
     } catch (err) {
-      console.error("Settings GET error:", err);
-      res.status(500).json({ error: "Internal server error" });
+      console.error("Settings GET catch error:", err);
+      res.status(500).json({ error: "Internal server error: " + (err instanceof Error ? err.message : String(err)) });
     }
   });
 

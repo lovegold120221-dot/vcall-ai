@@ -414,45 +414,52 @@ When using tools, think silently but speak naturally after receiving results.` }
           </div>
         </div>
         <nav className="nav-controls">
-          <button className="nav-item" onClick={() => setMicState(!micState)} style={{ color: micState ? 'var(--accent-active)' : 'var(--text-muted)' }}>
+          <button className={`nav-item ${micState ? 'active' : ''}`} onClick={() => setMicState(!micState)}>
              <div className="icon-wrapper">
                <div className="icon-pulse" style={{ 
-                 width: micState ? `${20 + clientVolume * 40}px` : '0px', 
-                 height: micState ? `${20 + clientVolume * 40}px` : '0px',
+                 width: micState ? `${28 + clientVolume * 30}px` : '0px', 
+                 height: micState ? `${28 + clientVolume * 30}px` : '0px',
                  opacity: micState && clientVolume > 0.01 ? 0.3 : 0
                }}></div>
-               <i className="ph-fill ph-microphone"></i>
+               <i className={`ph-fill ph-microphone${micState ? '' : '-slash'}`}></i>
              </div>
-             <span>Mic</span>
+             <span>{micState ? 'Mute' : 'Unmute'}</span>
           </button>
-          <button className="nav-item" onClick={isWebcamActive ? stopStream : startWebcam} style={{ color: isWebcamActive ? 'var(--accent-active)' : 'var(--text-muted)' }}>
+
+          <button className={`nav-item ${isScreenShareActive ? 'active' : ''}`} onClick={isScreenShareActive ? stopStream : startScreenShare}>
              <div className="icon-wrapper">
                <div className="icon-pulse" style={{ 
-                 width: isWebcamActive ? `28px` : '0px', 
-                 height: isWebcamActive ? `28px` : '0px',
-                 opacity: isWebcamActive ? 0.3 : 0,
-                 animation: isWebcamActive ? 'pulse-anim 2s infinite' : 'none'
-               }}></div>
-               <i className="ph-fill ph-video-camera"></i>
-             </div>
-             <span>Camera</span>
-          </button>
-          <button className="nav-item" onClick={isScreenShareActive ? stopStream : startScreenShare} style={{ color: isScreenShareActive ? 'var(--accent-active)' : 'var(--text-muted)' }}>
-             <div className="icon-wrapper">
-               <div className="icon-pulse" style={{ 
-                 width: isScreenShareActive ? `28px` : '0px', 
-                 height: isScreenShareActive ? `28px` : '0px',
+                 width: isScreenShareActive ? `32px` : '0px', 
+                 height: isScreenShareActive ? `32px` : '0px',
                  opacity: isScreenShareActive ? 0.3 : 0,
                  animation: isScreenShareActive ? 'pulse-anim 2s infinite' : 'none'
                }}></div>
                <i className="ph-fill ph-screencast"></i>
              </div>
-             <span>Share</span>
+             <span>{isScreenShareActive ? 'Stop Share' : 'Share Screen'}</span>
+          </button>
+
+          <button className={`nav-item`} onClick={() => setActiveOverlay('settings')}>
+             <div className="icon-wrapper">
+               <i className="ph-fill ph-gear"></i>
+             </div>
+             <span>Settings</span>
           </button>
         </nav>
       </div>
 
-      <video ref={videoRef} autoPlay playsInline muted style={{ position: 'fixed', bottom: '90px', right: '20px', width: '140px', borderRadius: '12px', border: '2px solid var(--border-color)', zIndex: 10, display: stream ? 'block' : 'none' }} />
+      {/* Control Tray (Floating) */}
+      <div className="control-tray">
+         <button 
+           className={`tray-btn ${isWebcamActive ? 'active' : ''}`} 
+           onClick={isWebcamActive ? stopStream : startWebcam}
+           title={isWebcamActive ? "Turn off camera" : "Turn on camera"}
+         >
+           <i className={`ph-bold ph-video-camera${isWebcamActive ? '' : '-slash'}`}></i>
+         </button>
+      </div>
+
+      <video ref={videoRef} autoPlay playsInline muted style={{ position: 'fixed', bottom: '160px', right: '20px', width: '160px', borderRadius: '16px', border: '2px solid var(--accent-primary)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', zIndex: 40, display: stream ? 'block' : 'none', objectFit: 'cover', aspectRatio: '16/9' }} />
 
       {/* Workspace & Artifact Overlay */}
       <div id="overlay-workspace" className={`full-page-overlay ${activeWorkspaceResult ? 'active' : ''}`}>
